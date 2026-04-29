@@ -1,0 +1,468 @@
+<mujoco model="jansen_primitive_farm_terrain">
+  <compiler angle="degree"/>
+  <!-- <option gravity="0 0 -9.81" timestep="0.001" integrator="implicitfast" iterations="120" tolerance="1e-10"/> -->
+  <option gravity="0 0 -9.81"
+          timestep="0.00025"
+          integrator="implicitfast"
+          solver="Newton"
+          jacobian="dense"
+          iterations="2000"
+          ls_iterations="120"
+          tolerance="1e-12"
+          ls_tolerance="1e-14"
+          cone="elliptic"
+          noslip_iterations="40"
+          noslip_tolerance="1e-10"/>
+  <asset>
+    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.22 0.26 0.30" rgb2="0.14 0.17 0.20" width="512" height="512"/>
+    <material name="ground_mat" texture="ground_tex" texrepeat="24 24" reflectance="0"/>
+  </asset>
+
+  <default>
+    <joint type="hinge" axis="0 1 0" damping="0.3" armature="0.003"/>
+    <geom type="capsule" size="0.004" rgba="0.8 0.8 0.8 1" contype="0" conaffinity="0" density="1000"/>
+    <site size="0.004"/>
+    <default class="prismatic_joint">
+      <joint type="slide" limited="true" range="-0.02 0.02" damping="100" armature="0.1"
+             solreflimit="0.00001 1" solimplimit="0.99 0.999 0.001"/>
+    </default>
+    <default class="leg_contact">
+      <geom contype="1" conaffinity="2" condim="3" friction="0.1 0.08 0.01"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom name="ground" type="plane" pos="0 0 0" size="12 12 0.1" rgba="0.25 0.20 0.15 1" friction="0.18 0.10 0.02" contype="2" conaffinity="1"/>
+
+    <!-- plowed farm-field rows without hfields: primitive obstacles only.
+         The first 0.35 m is kept flat so reset poses are stable. -->
+    <geom name="farm_furrow_00_00" type="capsule" fromto="-0.43 -0.304298 0.0106343 -0.746667 -0.284844 0.0106343" size="0.0106343" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_01" type="capsule" fromto="-0.746667 -0.290571 0.0100035 -1.06333 -0.284318 0.0100035" size="0.0100035" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_02" type="capsule" fromto="-1.06333 -0.286389 0.010336 -1.38 -0.289211 0.010336" size="0.010336" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_03" type="capsule" fromto="-1.38 -0.28634 0.00956036 -1.69667 -0.303886 0.00956036" size="0.00956036" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_04" type="capsule" fromto="-1.69667 -0.30081 0.0108359 -2.01333 -0.302615 0.0108359" size="0.0108359" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_05" type="capsule" fromto="-2.01333 -0.313621 0.00886516 -2.33 -0.301014 0.00886516" size="0.00886516" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_06" type="capsule" fromto="-2.33 -0.306864 0.010456 -2.64667 -0.292191 0.010456" size="0.010456" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_07" type="capsule" fromto="-2.64667 -0.297113 0.00935346 -2.96333 -0.2799 0.00935346" size="0.00935346" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_00_08" type="capsule" fromto="-2.96333 -0.280971 0.00904517 -3.28 -0.282115 0.00904517" size="0.00904517" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_00" type="capsule" fromto="-0.43 -0.191565 0.0116233 -0.746667 -0.183242 0.0116233" size="0.0116233" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_01" type="capsule" fromto="-0.746667 -0.191739 0.00988772 -1.06333 -0.194907 0.00988772" size="0.00988772" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_02" type="capsule" fromto="-1.06333 -0.193197 0.00980716 -1.38 -0.201806 0.00980716" size="0.00980716" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_03" type="capsule" fromto="-1.38 -0.208431 0.0112362 -1.69667 -0.212293 0.0112362" size="0.0112362" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_04" type="capsule" fromto="-1.69667 -0.206118 0.0104423 -2.01333 -0.197576 0.0104423" size="0.0104423" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_05" type="capsule" fromto="-2.01333 -0.197255 0.0113208 -2.33 -0.195171 0.0113208" size="0.0113208" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_06" type="capsule" fromto="-2.33 -0.19228 0.0111854 -2.64667 -0.18663 0.0111854" size="0.0111854" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_07" type="capsule" fromto="-2.64667 -0.182875 0.0096197 -2.96333 -0.196418 0.0096197" size="0.0096197" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_01_08" type="capsule" fromto="-2.96333 -0.185985 0.0108891 -3.28 -0.207013 0.0108891" size="0.0108891" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_00" type="capsule" fromto="-0.43 -0.0831937 0.00694561 -0.746667 -0.0910807 0.00694561" size="0.00694561" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_01" type="capsule" fromto="-0.746667 -0.0901001 0.00814117 -1.06333 -0.11152 0.00814117" size="0.00814117" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_02" type="capsule" fromto="-1.06333 -0.105309 0.00887264 -1.38 -0.11563 0.00887264" size="0.00887264" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_03" type="capsule" fromto="-1.38 -0.10904 0.0082932 -1.69667 -0.0996539 0.0082932" size="0.0082932" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_04" type="capsule" fromto="-1.69667 -0.103179 0.00768791 -2.01333 -0.0982285 0.00768791" size="0.00768791" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_05" type="capsule" fromto="-2.01333 -0.0928728 0.00711539 -2.33 -0.0921233 0.00711539" size="0.00711539" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_06" type="capsule" fromto="-2.33 -0.0851293 0.00782062 -2.64667 -0.0894484 0.00782062" size="0.00782062" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_07" type="capsule" fromto="-2.64667 -0.0861265 0.00832617 -2.96333 -0.101208 0.00832617" size="0.00832617" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_02_08" type="capsule" fromto="-2.96333 -0.105347 0.00885238 -3.28 -0.106908 0.00885238" size="0.00885238" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_00" type="capsule" fromto="-0.43 -0.0067301 0.00887767 -0.746667 -0.0166649 0.00887767" size="0.00887767" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_01" type="capsule" fromto="-0.746667 -0.0115201 0.00821413 -1.06333 -0.00520414 0.00821413" size="0.00821413" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_02" type="capsule" fromto="-1.06333 -0.00693156 0.00879341 -1.38 0.00427892 0.00879341" size="0.00879341" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_03" type="capsule" fromto="-1.38 0.00657757 0.00920915 -1.69667 0.0158529 0.00920915" size="0.00920915" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_04" type="capsule" fromto="-1.69667 0.0149109 0.0089306 -2.01333 0.00209466 0.0089306" size="0.0089306" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_05" type="capsule" fromto="-2.01333 0.00535553 0.00740077 -2.33 -0.00234515 0.00740077" size="0.00740077" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_06" type="capsule" fromto="-2.33 -0.00831756 0.00848501 -2.64667 -0.0101183 0.00848501" size="0.00848501" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_07" type="capsule" fromto="-2.64667 -0.0168109 0.00915472 -2.96333 -0.00443742 0.00915472" size="0.00915472" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_03_08" type="capsule" fromto="-2.96333 -0.00868271 0.00835372 -3.28 0.00254265 0.00835372" size="0.00835372" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_00" type="capsule" fromto="-0.43 0.113461 0.00768051 -0.746667 0.0996811 0.00768051" size="0.00768051" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_01" type="capsule" fromto="-0.746667 0.108844 0.0072705 -1.06333 0.097977 0.0072705" size="0.0072705" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_02" type="capsule" fromto="-1.06333 0.0974741 0.00789481 -1.38 0.0821214 0.00789481" size="0.00789481" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_03" type="capsule" fromto="-1.38 0.0834238 0.00811894 -1.69667 0.0880854 0.00811894" size="0.00811894" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_04" type="capsule" fromto="-1.69667 0.0895471 0.00735003 -2.01333 0.105438 0.00735003" size="0.00735003" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_05" type="capsule" fromto="-2.01333 0.105954 0.00803132 -2.33 0.114865 0.00803132" size="0.00803132" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_06" type="capsule" fromto="-2.33 0.112069 0.00866156 -2.64667 0.110859 0.00866156" size="0.00866156" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_07" type="capsule" fromto="-2.64667 0.104888 0.00780586 -2.96333 0.100162 0.00780586" size="0.00780586" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_04_08" type="capsule" fromto="-2.96333 0.0978761 0.00855256 -3.28 0.0920819 0.00855256" size="0.00855256" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_00" type="capsule" fromto="-0.43 0.204694 0.00832928 -0.746667 0.201247 0.00832928" size="0.00832928" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_01" type="capsule" fromto="-0.746667 0.207542 0.00833568 -1.06333 0.194705 0.00833568" size="0.00833568" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_02" type="capsule" fromto="-1.06333 0.196635 0.00687555 -1.38 0.18333 0.00687555" size="0.00687555" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_03" type="capsule" fromto="-1.38 0.189677 0.00720665 -1.69667 0.183656 0.00720665" size="0.00720665" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_04" type="capsule" fromto="-1.69667 0.187012 0.00696569 -2.01333 0.197021 0.00696569" size="0.00696569" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_05" type="capsule" fromto="-2.01333 0.20367 0.00827721 -2.33 0.209598 0.00827721" size="0.00827721" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_06" type="capsule" fromto="-2.33 0.207394 0.007339 -2.64667 0.208767 0.007339" size="0.007339" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_07" type="capsule" fromto="-2.64667 0.20676 0.00782171 -2.96333 0.200855 0.00782171" size="0.00782171" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_05_08" type="capsule" fromto="-2.96333 0.194255 0.00823427 -3.28 0.18971 0.00823427" size="0.00823427" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_00" type="capsule" fromto="-0.43 0.301393 0.0114442 -0.746667 0.283723 0.0114442" size="0.0114442" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_01" type="capsule" fromto="-0.746667 0.288815 0.00998288 -1.06333 0.286989 0.00998288" size="0.00998288" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_02" type="capsule" fromto="-1.06333 0.280008 0.0118944 -1.38 0.289257 0.0118944" size="0.0118944" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_03" type="capsule" fromto="-1.38 0.293664 0.0120761 -1.69667 0.30479 0.0120761" size="0.0120761" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_04" type="capsule" fromto="-1.69667 0.304153 0.00997071 -2.01333 0.309798 0.00997071" size="0.00997071" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_05" type="capsule" fromto="-2.01333 0.302526 0.010581 -2.33 0.302586 0.010581" size="0.010581" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_06" type="capsule" fromto="-2.33 0.299368 0.00991099 -2.64667 0.285512 0.00991099" size="0.00991099" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_07" type="capsule" fromto="-2.64667 0.287762 0.0114003 -2.96333 0.283704 0.0114003" size="0.0114003" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="farm_furrow_06_08" type="capsule" fromto="-2.96333 0.278957 0.0100411 -3.28 0.290364 0.0100411" size="0.0100411" rgba="0.36 0.27 0.17 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_00" type="ellipsoid" pos="-1.13186 0.00814076 0.00351426" size="0.0358656 0.0213287 0.00351426" euler="0 0 -15.2243" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_01" type="ellipsoid" pos="-1.70077 -0.0880017 0.00562505" size="0.0283814 0.0241273 0.00562505" euler="0 0 11.2286" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_02" type="ellipsoid" pos="-1.95469 0.138564 0.00721346" size="0.037887 0.0181471 0.00721346" euler="0 0 18.0489" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_03" type="ellipsoid" pos="-0.662205 0.129002 0.00452993" size="0.0247822 0.0234506 0.00452993" euler="0 0 33.1154" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_04" type="ellipsoid" pos="-1.87027 0.0925667 0.00728973" size="0.0365764 0.0250381 0.00728973" euler="0 0 17.5852" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_05" type="ellipsoid" pos="-3.09127 0.237948 0.00398186" size="0.0250063 0.0216913 0.00398186" euler="0 0 10.0326" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_06" type="ellipsoid" pos="-2.47591 0.0058798 0.00568013" size="0.0213205 0.0130681 0.00568013" euler="0 0 -29.3929" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_07" type="ellipsoid" pos="-1.07331 0.201286 0.00805785" size="0.0226729 0.0228223 0.00805785" euler="0 0 -6.64253" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_08" type="ellipsoid" pos="-1.04288 0.0316732 0.00527206" size="0.0268195 0.0213225 0.00527206" euler="0 0 -4.76243" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_09" type="ellipsoid" pos="-0.588182 0.255456 0.00673119" size="0.0312185 0.019421 0.00673119" euler="0 0 -25.3894" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_10" type="ellipsoid" pos="-1.85769 0.0983224 0.00681071" size="0.0301082 0.0241527 0.00681071" euler="0 0 -27.3033" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_11" type="ellipsoid" pos="-2.22021 0.067971 0.00766635" size="0.0258913 0.0137227 0.00766635" euler="0 0 -26.0764" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_12" type="ellipsoid" pos="-0.546855 0.236833 0.00709832" size="0.0390896 0.0146955 0.00709832" euler="0 0 33.0982" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_13" type="ellipsoid" pos="-2.6578 -0.205081 0.00649146" size="0.0448209 0.0223579 0.00649146" euler="0 0 -35.9869" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_14" type="ellipsoid" pos="-2.49151 0.250039 0.00669281" size="0.0294703 0.0131078 0.00669281" euler="0 0 37.7856" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_15" type="ellipsoid" pos="-3.2098 -0.114544 0.00816801" size="0.0223371 0.0274648 0.00816801" euler="0 0 6.46678" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_16" type="ellipsoid" pos="-1.32157 0.0991533 0.0083882" size="0.0187594 0.0175376 0.0083882" euler="0 0 12.6329" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_17" type="ellipsoid" pos="-2.61346 0.116386 0.00477612" size="0.0420051 0.0194483 0.00477612" euler="0 0 4.55083" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_18" type="ellipsoid" pos="-1.15591 0.0859886 0.0055659" size="0.020335 0.0288743 0.0055659" euler="0 0 -9.92443" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_19" type="ellipsoid" pos="-2.55549 -0.0578692 0.00365212" size="0.0249138 0.0274448 0.00365212" euler="0 0 -14.1274" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_20" type="ellipsoid" pos="-2.56795 0.181394 0.00793658" size="0.0222149 0.0262146 0.00793658" euler="0 0 -43.4767" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_21" type="ellipsoid" pos="-1.62322 0.110024 0.00818057" size="0.0384641 0.0336459 0.00818057" euler="0 0 6.53689" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_22" type="ellipsoid" pos="-1.01516 -0.139382 0.00394208" size="0.0222911 0.0254894 0.00394208" euler="0 0 0.521842" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_23" type="ellipsoid" pos="-3.31963 0.184922 0.0037683" size="0.0369722 0.0301055 0.0037683" euler="0 0 -7.93687" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_24" type="ellipsoid" pos="-2.15681 0.0596351 0.00484818" size="0.0215842 0.0164118 0.00484818" euler="0 0 -2.98931" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_25" type="ellipsoid" pos="-3.3355 -0.027928 0.00559349" size="0.0185281 0.0270378 0.00559349" euler="0 0 30.5621" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_26" type="ellipsoid" pos="-0.42999 -0.0558108 0.00660617" size="0.0398337 0.0162289 0.00660617" euler="0 0 44.1265" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_27" type="ellipsoid" pos="-3.12203 0.182117 0.00794609" size="0.0227769 0.0245632 0.00794609" euler="0 0 -4.47592" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_28" type="ellipsoid" pos="-3.0684 0.158048 0.00407193" size="0.0395319 0.0160939 0.00407193" euler="0 0 -28.5063" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_29" type="ellipsoid" pos="-3.19921 0.237158 0.00666244" size="0.0320099 0.033932 0.00666244" euler="0 0 -27.8677" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_30" type="ellipsoid" pos="-2.08733 0.1049 0.00657264" size="0.0398073 0.0152239 0.00657264" euler="0 0 8.85005" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+    <geom name="soil_clod_31" type="ellipsoid" pos="-2.90254 -0.135238 0.00448366" size="0.0408588 0.0270545 0.00448366" euler="0 0 -18.2517" rgba="0.28 0.20 0.13 1" friction="0.22 0.12 0.025" contype="2" conaffinity="1"/>
+
+
+    <!-- Plate dimensions: 0.25008 m x 0.1 m x 0.01 m -->
+    <!-- MuJoCo box size uses half-extents: 0.12504 0.05 0.005 -->
+    <!-- Center at z=0.155 so the plate bottom is at z=0.15 -->
+    <body name="plate_body" pos="0 0 0.155">
+      <freejoint name="plate_free"/>
+      <geom
+        name="plate"
+        type="box"
+        size="0.12504 0.05 0.005"
+        rgba="0.75 0.75 0.82 1"
+        density="5000"/>
+
+      <body name="link_m" pos="-0.055 -0.05 0" childclass="leg_contact">
+        <joint name="hinge_m" type="hinge" pos="0 0 0"/>
+        <geom name="link_m" type="capsule" fromto="0 0 0 0.02384 0 0" rgba="1 0 0 1"/>
+              <body name="link_j" pos="0.02384 0 0" euler="0 42 0">
+                <joint name="hinge_j" type="hinge" pos="0 0 0"/>
+                <geom name="link_j" type="capsule" fromto="0 0 0 -0.07870 0 0" rgba="1 0 0 1"/>              
+                <site name="j_end" pos="-0.07870 0 0" rgba="1 0.4 0.4 1"/>          
+              </body>
+              <body name="link_k" pos="0.02384 0 0" euler="0 -42 0">
+                <joint name="hinge_k" type="hinge" pos="0 0 0"/>
+                <geom name="link_k_outer" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="1 0 0 1"/>
+                <body name="link_k_inner" pos="-0.04180 0 0">
+                  <joint class="prismatic_joint" name="slide_k" axis="-1 0 0"/>
+                  <geom name="link_k_inner" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="1 0.4 0.4 1"/>
+                  <site name="k_end" pos="-0.04180 0 0" rgba="1 0.5 0.5 1"/>
+                </body>
+              </body>
+
+      </body>
+      <body name="link_c" pos="-0.11404 -0.05 0" euler="0 -110 0" childclass="leg_contact">
+        <joint name="hinge_c" type="hinge" pos="0 0 0"/>
+        <geom name="link_c" type="capsule" fromto="0 0 0 -0.06006 0 0" rgba="1 0 0 1"/>              
+        <site name="c_end" pos="-0.06046 0 0" rgba="1 0.5 0.5 1"/>          
+      </body>
+      <body name="triangle_link1" pos="-0.11404 -0.05 0" euler="0 22 0" childclass="leg_contact">
+        <joint name="tri_hinge" type="hinge" pos="0 0 0"/>
+
+        <!-- Rigid triangle in one body: B(0,0,0), E(0,0,0.06328), D(-0.08869,0,0.00317) -->
+        <geom name="edge_b" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="1 0 0 1"/>
+        <geom name="edge_e" type="capsule" fromto="0 0 0.06328 -0.0600779625 0 -0.0019622756" rgba="1 0 0 1"/>
+        <geom name="edge_d" type="capsule" fromto="-0.0600779625 0 -0.0019622756 0 0 0" rgba="1 0 0 1"/>
+              <body name="link_f_outer" pos="-0.0600779625 0 -0.0019622756" euler="0 -135 0">
+                <joint name="hinge_f" type="hinge" pos="0 0 0"/>
+                <geom name="link_f_outer" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="1 0 0 1"/>              
+                <body name="link_f_inner" pos="-0.02836 0 0">
+                    <joint class="prismatic_joint" name="slide_f" axis="-1 0 0"/>
+                    <geom name="link_f_inner" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="1 0.4 0.4 1"/>
+                    <body name="triangle_link2" pos="-0.02836 0 0" euler="0 -130 0">
+                        <joint name="tri_hinge_ghi" type="hinge" pos="0 0 0"/>
+                        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+
+                        <!-- Articulated G-H-I triangle: links rotate relative to each other.
+                             H is telescopic via slide_h. -->
+                        <body name="link_g_red" pos="0 0 0">
+                            <joint name="hinge_g_red" type="hinge" pos="0 0 0"/>
+                            <geom name="edge_g" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="1 0 0 1"/>
+                            <body name="link_i_red" pos="0 0 0.05614">
+                                <joint name="hinge_i_red" type="hinge" pos="0 0 0"/>
+                                <site name="g_i" pos="0 0 0" rgba="1 0.5 0.5 1"/>
+                                <geom name="edge_i" type="capsule" fromto="0 0 0 0.0832629937 0 0.0024827155" rgba="1 0 0 1"/>
+                                <site name="h_match_red" pos="0.0832629937 0 0.0024827155" rgba="1 0.5 0.5 1"/>
+                            </body>
+                        </body>
+                        <body name="link_h_red" pos="0 0 0">
+                            <joint name="hinge_h_red" type="hinge" pos="0 0 0"/>
+                            <geom name="edge_h_outer" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="1 0 0 1"/>
+                            <body name="link_h_inner" pos="0.0416314969 0 0.0293113578">
+                                <joint class="prismatic_joint" name="slide_h" axis="0.8178 0 0.5755"/>
+                                <geom name="edge_h_inner" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="1 0.4 0.4 1"/>
+                                <site name="h_end_red" pos="0.0416314969 0 0.0293113578" rgba="1 0.5 0.5 1"/>
+                            </body>
+                        </body>
+                    </body>                      
+                </body>
+              </body>        
+              
+        <site name="b_e" pos="0 0 0.06328" rgba="1 0.5 0.5 1"/>
+      </body>
+
+
+
+      <body name="link_m_r" pos="0.055 -0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_r" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_r" type="capsule" fromto="0 0 0 -0.02384 0 0" rgba="0 1 0 1"/>
+        <body name="link_j_r" pos="-0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_j_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_r" type="capsule" fromto="0 0 0 0.07870 0 0" rgba="0 1 0 1"/>
+          <site name="j_end_r" pos="0.07870 0 0" rgba="0.4 1 0.4 1"/>
+        </body>
+        <body name="link_k_r" pos="-0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_k_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_r" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="0 1 0 1"/>
+          <body name="link_k_inner_r" pos="0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_r" axis="1 0 0"/>
+            <geom name="link_k_inner_r" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="0.4 1 0.4 1"/>
+            <site name="k_end_r" pos="0.04180 0 0" rgba="0.5 1 0.5 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_r" pos="0.11404 -0.05 0" euler="0 110 0" childclass="leg_contact">
+        <joint name="hinge_c_r" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_r" type="capsule" fromto="0 0 0 0.06006 0 0" rgba="0 1 0 1"/>
+        <site name="c_end_r" pos="0.06046 0 0" rgba="0.5 1 0.5 1"/>
+      </body>
+
+      <body name="triangle_link1_r" pos="0.11404 -0.05 0" euler="0 -22 0" childclass="leg_contact">
+        <joint name="tri_hinge_r" type="hinge" pos="0 0 0"/>
+
+        <geom name="edge_b_r" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="0 1 0 1"/>
+        <geom name="edge_e_r" type="capsule" fromto="0 0 0.06328 0.0600779625 0 -0.0019622756" rgba="0 1 0 1"/>
+        <geom name="edge_d_r" type="capsule" fromto="0.0600779625 0 -0.0019622756 0 0 0" rgba="0 1 0 1"/>
+
+        <body name="link_f_r" pos="0.0600779625 0 -0.0019622756" euler="0 135 0">
+          <joint name="hinge_f_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_r_outer" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="0 1 0 1"/>
+          <body name="link_f_r_inner" pos="0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_r" axis="1 0 0"/>
+            <geom name="link_f_r_inner" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="0.4 1 0.4 1"/>
+
+            <body name="triangle_link2_r" pos="0.02836 0 0" euler="0 130 0">
+            <joint name="tri_hinge_ghi_r" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_r" pos="0 0 0">
+              <joint name="hinge_g_r" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_r" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="0 1 0 1"/>
+              <body name="link_i_r" pos="0 0 0.05614">
+                <joint name="hinge_i_r" type="hinge" pos="0 0 0"/>
+                <site name="g_i_r" pos="0 0 0" rgba="0.5 1 0.5 1"/>
+                <geom name="edge_i_r" type="capsule" fromto="0 0 0 -0.0832629937 0 0.0024827155" rgba="0 1 0 1"/>
+                <site name="h_match_r" pos="-0.0832629937 0 0.0024827155" rgba="0.5 1 0.5 1"/>
+              </body>
+            </body>
+            <body name="link_h_r" pos="0 0 0">
+              <joint name="hinge_h_r" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_r" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="0 1 0 1"/>
+              <body name="link_h_inner_r" pos="-0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_r" axis="-0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_r" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="0.4 1 0.4 1"/>
+                <site name="h_end_r" pos="-0.0416314969 0 0.0293113578" rgba="0.5 1 0.5 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+
+        <site name="b_e_r" pos="0 0 0.06328" rgba="0.5 1 0.5 1"/>
+      </body>
+
+      <body name="link_m_y" pos="-0.055 0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_y" type="capsule" fromto="0 0 0 0.02384 0 0" rgba="0 0 1 1"/>
+        <body name="link_j_y" pos="0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_j_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_y" type="capsule" fromto="0 0 0 -0.07870 0 0" rgba="0 0 1 1"/>
+          <site name="j_end_y" pos="-0.07870 0 0" rgba="0.4 0.4 1 1"/>
+        </body>
+        <body name="link_k_y" pos="0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_k_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_y" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="0 0 1 1"/>
+          <body name="link_k_inner_y" pos="-0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_y" axis="-1 0 0"/>
+            <geom name="link_k_inner_y" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="0.4 0.4 1 1"/>
+            <site name="k_end_y" pos="-0.04180 0 0" rgba="0.5 0.5 1 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_y" pos="-0.11404 0.05 0" euler="0 -110 0" childclass="leg_contact">
+        <joint name="hinge_c_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_y" type="capsule" fromto="0 0 0 -0.06006 0 0" rgba="0 0 1 1"/>
+        <site name="c_end_y" pos="-0.06046 0 0" rgba="0.5 0.5 1 1"/>
+      </body>
+
+      <body name="triangle_link1_y" pos="-0.11404 0.05 0" euler="0 22 0" childclass="leg_contact">
+        <joint name="tri_hinge_y" type="hinge" pos="0 0 0"/>
+        <geom name="edge_b_y" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="0 0 1 1"/>
+        <geom name="edge_e_y" type="capsule" fromto="0 0 0.06328 -0.0600779625 0 -0.0019622756" rgba="0 0 1 1"/>
+        <geom name="edge_d_y" type="capsule" fromto="-0.0600779625 0 -0.0019622756 0 0 0" rgba="0 0 1 1"/>
+        <body name="link_f_y" pos="-0.0600779625 0 -0.0019622756" euler="0 -135 0">
+          <joint name="hinge_f_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_y_outer" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="0 0 1 1"/>
+          <body name="link_f_y_inner" pos="-0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_y" axis="-1 0 0"/>
+            <geom name="link_f_y_inner" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="0.4 0.4 1 1"/>
+            <body name="triangle_link2_y" pos="-0.02836 0 0" euler="0 -130 0">
+            <joint name="tri_hinge_ghi_y" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_y" pos="0 0 0">
+              <joint name="hinge_g_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_y" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="0 0 1 1"/>
+              <body name="link_i_y" pos="0 0 0.05614">
+                <joint name="hinge_i_y" type="hinge" pos="0 0 0"/>
+                <site name="g_i_y" pos="0 0 0" rgba="0.5 0.5 1 1"/>
+                <geom name="edge_i_y" type="capsule" fromto="0 0 0 0.0832629937 0 0.0024827155" rgba="0 0 1 1"/>
+                <site name="h_match_y" pos="0.0832629937 0 0.0024827155" rgba="0.5 0.5 1 1"/>
+              </body>
+            </body>
+            <body name="link_h_y" pos="0 0 0">
+              <joint name="hinge_h_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_y" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="0 0 1 1"/>
+              <body name="link_h_inner_y" pos="0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_y" axis="0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_y" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="0.4 0.4 1 1"/>
+                <site name="h_end_y" pos="0.0416314969 0 0.0293113578" rgba="0.5 0.5 1 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+        <site name="b_e_y" pos="0 0 0.06328" rgba="0.5 0.5 1 1"/>
+      </body>
+
+      <body name="link_m_r_y" pos="0.055 0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_r_y" type="capsule" fromto="0 0 0 -0.02384 0 0" rgba="1 1 0 1"/>
+        <body name="link_j_r_y" pos="-0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_j_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_r_y" type="capsule" fromto="0 0 0 0.07870 0 0" rgba="1 1 0 1"/>
+          <site name="j_end_r_y" pos="0.07870 0 0" rgba="1 1 0.4 1"/>
+        </body>
+        <body name="link_k_r_y" pos="-0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_k_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_r_y" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="1 1 0 1"/>
+          <body name="link_k_inner_r_y" pos="0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_r_y" axis="1 0 0"/>
+            <geom name="link_k_inner_r_y" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="1 1 0.4 1"/>
+            <site name="k_end_r_y" pos="0.04180 0 0" rgba="1 1 0.5 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_r_y" pos="0.11404 0.05 0" euler="0 110 0" childclass="leg_contact">
+        <joint name="hinge_c_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_r_y" type="capsule" fromto="0 0 0 0.06006 0 0" rgba="1 1 0 1"/>
+        <site name="c_end_r_y" pos="0.06046 0 0" rgba="1 1 0.5 1"/>
+      </body>
+
+      <body name="triangle_link1_r_y" pos="0.11404 0.05 0" euler="0 -22 0" childclass="leg_contact">
+        <joint name="tri_hinge_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="edge_b_r_y" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="1 1 0 1"/>
+        <geom name="edge_e_r_y" type="capsule" fromto="0 0 0.06328 0.0600779625 0 -0.0019622756" rgba="1 1 0 1"/>
+        <geom name="edge_d_r_y" type="capsule" fromto="0.0600779625 0 -0.0019622756 0 0 0" rgba="1 1 0 1"/>
+        <body name="link_f_r_y" pos="0.0600779625 0 -0.0019622756" euler="0 135 0">
+          <joint name="hinge_f_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_r_y_outer" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="1 1 0 1"/>
+          <body name="link_f_r_y_inner" pos="0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_r_y" axis="1 0 0"/>
+            <geom name="link_f_r_y_inner" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="1 1 0.4 1"/>
+            <body name="triangle_link2_r_y" pos="0.02836 0 0" euler="0 130 0">
+            <joint name="tri_hinge_ghi_r_y" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_r_y" pos="0 0 0">
+              <joint name="hinge_g_r_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_r_y" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="1 1 0 1"/>
+              <body name="link_i_r_y" pos="0 0 0.05614">
+                <joint name="hinge_i_r_y" type="hinge" pos="0 0 0"/>
+                <site name="g_i_r_y" pos="0 0 0" rgba="1 1 0.5 1"/>
+                <geom name="edge_i_r_y" type="capsule" fromto="0 0 0 -0.0832629937 0 0.0024827155" rgba="1 1 0 1"/>
+                <site name="h_match_r_y" pos="-0.0832629937 0 0.0024827155" rgba="1 1 0.5 1"/>
+              </body>
+            </body>
+            <body name="link_h_r_y" pos="0 0 0">
+              <joint name="hinge_h_r_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_r_y" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="1 1 0 1"/>
+              <body name="link_h_inner_r_y" pos="-0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_r_y" axis="-0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_r_y" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="1 1 0.4 1"/>
+                <site name="h_end_r_y" pos="-0.0416314969 0 0.0293113578" rgba="1 1 0.5 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+        <site name="b_e_r_y" pos="0 0 0.06328" rgba="1 1 0.5 1"/>
+      </body>
+
+    </body>
+  </worldbody>
+<equality>
+  <!-- Minimal loop-closure set for this articulated topology: 4 connect constraints per leg. -->
+
+  <!-- Red leg closures -->
+  <connect name="j_to_be" site1="b_e" site2="j_end" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k" site1="c_end" site2="k_end" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi" site1="c_end" site2="g_i" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi" site1="k_end" site2="g_i" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_red" site1="h_end_red" site2="h_match_red" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Green leg closures -->
+  <connect name="j_to_be_r" site1="b_e_r" site2="j_end_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_r" site1="c_end_r" site2="k_end_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_r" site1="c_end_r" site2="g_i_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_r" site1="k_end_r" site2="g_i_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_r" site1="h_end_r" site2="h_match_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Blue leg closures -->
+  <connect name="j_to_be_y" site1="b_e_y" site2="j_end_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_y" site1="c_end_y" site2="k_end_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_y" site1="c_end_y" site2="g_i_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_y" site1="k_end_y" site2="g_i_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_y" site1="h_end_y" site2="h_match_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Yellow leg closures -->
+  <connect name="j_to_be_r_y" site1="b_e_r_y" site2="j_end_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_r_y" site1="c_end_r_y" site2="k_end_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_r_y" site1="c_end_r_y" site2="g_i_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_r_y" site1="k_end_r_y" site2="g_i_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_r_y" site1="h_end_r_y" site2="h_match_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+</equality>
+  <actuator>
+    <velocity name="crank_motor" joint="hinge_m" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_r" joint="hinge_m_r" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_y" joint="hinge_m_y" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_r_y" joint="hinge_m_r_y" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <position name="h1_prismatic" joint="slide_h" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h2_prismatic" joint="slide_h_r" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h3_prismatic" joint="slide_h_y" kp="160000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h4_prismatic" joint="slide_h_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="k1_prismatic" joint="slide_k" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="k2_prismatic" joint="slide_k_r" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02  "/>
+    <position name="k3_prismatic" joint="slide_k_y" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>l
+    <position name="k4_prismatic" joint="slide_k_r_y" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f1_prismatic" joint="slide_f" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f2_prismatic" joint="slide_f_r" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f3_prismatic" joint="slide_f_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f4_prismatic" joint="slide_f_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+  </actuator>    
+</mujoco>
+
+

@@ -1,0 +1,381 @@
+<mujoco model="jansen_rolling_hills">
+  <compiler angle="degree"/>
+  <!-- <option gravity="0 0 -9.81" timestep="0.001" integrator="implicitfast" iterations="120" tolerance="1e-10"/> -->
+  <option gravity="0 0 -9.81"
+          timestep="0.00025"
+          integrator="implicitfast"
+          solver="Newton"
+          jacobian="dense"
+          iterations="2000"
+          ls_iterations="120"
+          tolerance="1e-12"
+          ls_tolerance="1e-14"
+          cone="elliptic"
+          noslip_iterations="40"
+          noslip_tolerance="1e-10"/>
+  <asset>
+    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.22 0.26 0.30" rgb2="0.14 0.17 0.20" width="512" height="512"/>
+    <material name="ground_mat" texture="ground_tex" texrepeat="24 24" reflectance="0"/>
+    <material name="rolling_hills_mat" rgba="0.23 0.31 0.20 1" reflectance="0"/>
+    <hfield name="rolling_hills_hfield" file="terrain_assets/rolling_hills_heightmap.png" size="2.15 0.62 0.3 0.012"/>
+  </asset>
+
+  <default>
+    <joint type="hinge" axis="0 1 0" damping="0.3" armature="0.003"/>
+    <geom type="capsule" size="0.004" rgba="0.8 0.8 0.8 1" contype="0" conaffinity="0" density="1000"/>
+    <site size="0.004"/>
+    <default class="prismatic_joint">
+      <joint type="slide" limited="true" range="-0.02 0.02" damping="100" armature="0.1"
+             solreflimit="0.00001 1" solimplimit="0.99 0.999 0.001"/>
+    </default>
+    <default class="leg_contact">
+      <geom contype="1" conaffinity="2" condim="3" friction="0.1 0.08 0.01"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom name="ground" type="plane" pos="0 0 -0.008" size="12 12 0.1" rgba="0.17 0.22 0.15 1" friction="0.16 0.09 0.02" contype="2" conaffinity="1"/>
+
+    <!-- Continuous rolling hills: one curved hfield surface, no obstacle geoms. -->
+    <geom name="rolling_hills_terrain"
+          type="hfield"
+          hfield="rolling_hills_hfield"
+          pos="-2 0 0"
+          material="rolling_hills_mat"
+          friction="0.20 0.11 0.025"
+          contype="2"
+          conaffinity="1"/>
+
+    <!-- Plate dimensions: 0.25008 m x 0.1 m x 0.01 m -->
+    <!-- MuJoCo box size uses half-extents: 0.12504 0.05 0.005 -->
+    <!-- Center at z=0.155 so the plate bottom is at z=0.15 -->
+    <body name="plate_body" pos="0 0 0.155">
+      <freejoint name="plate_free"/>
+      <geom
+        name="plate"
+        type="box"
+        size="0.12504 0.05 0.005"
+        rgba="0.75 0.75 0.82 1"
+        density="5000"/>
+
+      <body name="link_m" pos="-0.055 -0.05 0" childclass="leg_contact">
+        <joint name="hinge_m" type="hinge" pos="0 0 0"/>
+        <geom name="link_m" type="capsule" fromto="0 0 0 0.02384 0 0" rgba="1 0 0 1"/>
+              <body name="link_j" pos="0.02384 0 0" euler="0 42 0">
+                <joint name="hinge_j" type="hinge" pos="0 0 0"/>
+                <geom name="link_j" type="capsule" fromto="0 0 0 -0.07870 0 0" rgba="1 0 0 1"/>              
+                <site name="j_end" pos="-0.07870 0 0" rgba="1 0.4 0.4 1"/>          
+              </body>
+              <body name="link_k" pos="0.02384 0 0" euler="0 -42 0">
+                <joint name="hinge_k" type="hinge" pos="0 0 0"/>
+                <geom name="link_k_outer" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="1 0 0 1"/>
+                <body name="link_k_inner" pos="-0.04180 0 0">
+                  <joint class="prismatic_joint" name="slide_k" axis="-1 0 0"/>
+                  <geom name="link_k_inner" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="1 0.4 0.4 1"/>
+                  <site name="k_end" pos="-0.04180 0 0" rgba="1 0.5 0.5 1"/>
+                </body>
+              </body>
+
+      </body>
+      <body name="link_c" pos="-0.11404 -0.05 0" euler="0 -110 0" childclass="leg_contact">
+        <joint name="hinge_c" type="hinge" pos="0 0 0"/>
+        <geom name="link_c" type="capsule" fromto="0 0 0 -0.06006 0 0" rgba="1 0 0 1"/>              
+        <site name="c_end" pos="-0.06046 0 0" rgba="1 0.5 0.5 1"/>          
+      </body>
+      <body name="triangle_link1" pos="-0.11404 -0.05 0" euler="0 22 0" childclass="leg_contact">
+        <joint name="tri_hinge" type="hinge" pos="0 0 0"/>
+
+        <!-- Rigid triangle in one body: B(0,0,0), E(0,0,0.06328), D(-0.08869,0,0.00317) -->
+        <geom name="edge_b" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="1 0 0 1"/>
+        <geom name="edge_e" type="capsule" fromto="0 0 0.06328 -0.0600779625 0 -0.0019622756" rgba="1 0 0 1"/>
+        <geom name="edge_d" type="capsule" fromto="-0.0600779625 0 -0.0019622756 0 0 0" rgba="1 0 0 1"/>
+              <body name="link_f_outer" pos="-0.0600779625 0 -0.0019622756" euler="0 -135 0">
+                <joint name="hinge_f" type="hinge" pos="0 0 0"/>
+                <geom name="link_f_outer" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="1 0 0 1"/>              
+                <body name="link_f_inner" pos="-0.02836 0 0">
+                    <joint class="prismatic_joint" name="slide_f" axis="-1 0 0"/>
+                    <geom name="link_f_inner" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="1 0.4 0.4 1"/>
+                    <body name="triangle_link2" pos="-0.02836 0 0" euler="0 -130 0">
+                        <joint name="tri_hinge_ghi" type="hinge" pos="0 0 0"/>
+                        <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+
+                        <!-- Articulated G-H-I triangle: links rotate relative to each other.
+                             H is telescopic via slide_h. -->
+                        <body name="link_g_red" pos="0 0 0">
+                            <joint name="hinge_g_red" type="hinge" pos="0 0 0"/>
+                            <geom name="edge_g" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="1 0 0 1"/>
+                            <body name="link_i_red" pos="0 0 0.05614">
+                                <joint name="hinge_i_red" type="hinge" pos="0 0 0"/>
+                                <site name="g_i" pos="0 0 0" rgba="1 0.5 0.5 1"/>
+                                <geom name="edge_i" type="capsule" fromto="0 0 0 0.0832629937 0 0.0024827155" rgba="1 0 0 1"/>
+                                <site name="h_match_red" pos="0.0832629937 0 0.0024827155" rgba="1 0.5 0.5 1"/>
+                            </body>
+                        </body>
+                        <body name="link_h_red" pos="0 0 0">
+                            <joint name="hinge_h_red" type="hinge" pos="0 0 0"/>
+                            <geom name="edge_h_outer" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="1 0 0 1"/>
+                            <body name="link_h_inner" pos="0.0416314969 0 0.0293113578">
+                                <joint class="prismatic_joint" name="slide_h" axis="0.8178 0 0.5755"/>
+                                <geom name="edge_h_inner" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="1 0.4 0.4 1"/>
+                                <site name="h_end_red" pos="0.0416314969 0 0.0293113578" rgba="1 0.5 0.5 1"/>
+                            </body>
+                        </body>
+                    </body>                      
+                </body>
+              </body>        
+              
+        <site name="b_e" pos="0 0 0.06328" rgba="1 0.5 0.5 1"/>
+      </body>
+
+
+
+      <body name="link_m_r" pos="0.055 -0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_r" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_r" type="capsule" fromto="0 0 0 -0.02384 0 0" rgba="0 1 0 1"/>
+        <body name="link_j_r" pos="-0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_j_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_r" type="capsule" fromto="0 0 0 0.07870 0 0" rgba="0 1 0 1"/>
+          <site name="j_end_r" pos="0.07870 0 0" rgba="0.4 1 0.4 1"/>
+        </body>
+        <body name="link_k_r" pos="-0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_k_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_r" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="0 1 0 1"/>
+          <body name="link_k_inner_r" pos="0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_r" axis="1 0 0"/>
+            <geom name="link_k_inner_r" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="0.4 1 0.4 1"/>
+            <site name="k_end_r" pos="0.04180 0 0" rgba="0.5 1 0.5 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_r" pos="0.11404 -0.05 0" euler="0 110 0" childclass="leg_contact">
+        <joint name="hinge_c_r" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_r" type="capsule" fromto="0 0 0 0.06006 0 0" rgba="0 1 0 1"/>
+        <site name="c_end_r" pos="0.06046 0 0" rgba="0.5 1 0.5 1"/>
+      </body>
+
+      <body name="triangle_link1_r" pos="0.11404 -0.05 0" euler="0 -22 0" childclass="leg_contact">
+        <joint name="tri_hinge_r" type="hinge" pos="0 0 0"/>
+
+        <geom name="edge_b_r" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="0 1 0 1"/>
+        <geom name="edge_e_r" type="capsule" fromto="0 0 0.06328 0.0600779625 0 -0.0019622756" rgba="0 1 0 1"/>
+        <geom name="edge_d_r" type="capsule" fromto="0.0600779625 0 -0.0019622756 0 0 0" rgba="0 1 0 1"/>
+
+        <body name="link_f_r" pos="0.0600779625 0 -0.0019622756" euler="0 135 0">
+          <joint name="hinge_f_r" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_r_outer" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="0 1 0 1"/>
+          <body name="link_f_r_inner" pos="0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_r" axis="1 0 0"/>
+            <geom name="link_f_r_inner" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="0.4 1 0.4 1"/>
+
+            <body name="triangle_link2_r" pos="0.02836 0 0" euler="0 130 0">
+            <joint name="tri_hinge_ghi_r" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_r" pos="0 0 0">
+              <joint name="hinge_g_r" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_r" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="0 1 0 1"/>
+              <body name="link_i_r" pos="0 0 0.05614">
+                <joint name="hinge_i_r" type="hinge" pos="0 0 0"/>
+                <site name="g_i_r" pos="0 0 0" rgba="0.5 1 0.5 1"/>
+                <geom name="edge_i_r" type="capsule" fromto="0 0 0 -0.0832629937 0 0.0024827155" rgba="0 1 0 1"/>
+                <site name="h_match_r" pos="-0.0832629937 0 0.0024827155" rgba="0.5 1 0.5 1"/>
+              </body>
+            </body>
+            <body name="link_h_r" pos="0 0 0">
+              <joint name="hinge_h_r" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_r" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="0 1 0 1"/>
+              <body name="link_h_inner_r" pos="-0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_r" axis="-0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_r" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="0.4 1 0.4 1"/>
+                <site name="h_end_r" pos="-0.0416314969 0 0.0293113578" rgba="0.5 1 0.5 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+
+        <site name="b_e_r" pos="0 0 0.06328" rgba="0.5 1 0.5 1"/>
+      </body>
+
+      <body name="link_m_y" pos="-0.055 0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_y" type="capsule" fromto="0 0 0 0.02384 0 0" rgba="0 0 1 1"/>
+        <body name="link_j_y" pos="0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_j_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_y" type="capsule" fromto="0 0 0 -0.07870 0 0" rgba="0 0 1 1"/>
+          <site name="j_end_y" pos="-0.07870 0 0" rgba="0.4 0.4 1 1"/>
+        </body>
+        <body name="link_k_y" pos="0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_k_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_y" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="0 0 1 1"/>
+          <body name="link_k_inner_y" pos="-0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_y" axis="-1 0 0"/>
+            <geom name="link_k_inner_y" type="capsule" fromto="0 0 0 -0.04180 0 0" rgba="0.4 0.4 1 1"/>
+            <site name="k_end_y" pos="-0.04180 0 0" rgba="0.5 0.5 1 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_y" pos="-0.11404 0.05 0" euler="0 -110 0" childclass="leg_contact">
+        <joint name="hinge_c_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_y" type="capsule" fromto="0 0 0 -0.06006 0 0" rgba="0 0 1 1"/>
+        <site name="c_end_y" pos="-0.06046 0 0" rgba="0.5 0.5 1 1"/>
+      </body>
+
+      <body name="triangle_link1_y" pos="-0.11404 0.05 0" euler="0 22 0" childclass="leg_contact">
+        <joint name="tri_hinge_y" type="hinge" pos="0 0 0"/>
+        <geom name="edge_b_y" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="0 0 1 1"/>
+        <geom name="edge_e_y" type="capsule" fromto="0 0 0.06328 -0.0600779625 0 -0.0019622756" rgba="0 0 1 1"/>
+        <geom name="edge_d_y" type="capsule" fromto="-0.0600779625 0 -0.0019622756 0 0 0" rgba="0 0 1 1"/>
+        <body name="link_f_y" pos="-0.0600779625 0 -0.0019622756" euler="0 -135 0">
+          <joint name="hinge_f_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_y_outer" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="0 0 1 1"/>
+          <body name="link_f_y_inner" pos="-0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_y" axis="-1 0 0"/>
+            <geom name="link_f_y_inner" type="capsule" fromto="0 0 0 -0.02836 0 0" rgba="0.4 0.4 1 1"/>
+            <body name="triangle_link2_y" pos="-0.02836 0 0" euler="0 -130 0">
+            <joint name="tri_hinge_ghi_y" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_y" pos="0 0 0">
+              <joint name="hinge_g_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_y" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="0 0 1 1"/>
+              <body name="link_i_y" pos="0 0 0.05614">
+                <joint name="hinge_i_y" type="hinge" pos="0 0 0"/>
+                <site name="g_i_y" pos="0 0 0" rgba="0.5 0.5 1 1"/>
+                <geom name="edge_i_y" type="capsule" fromto="0 0 0 0.0832629937 0 0.0024827155" rgba="0 0 1 1"/>
+                <site name="h_match_y" pos="0.0832629937 0 0.0024827155" rgba="0.5 0.5 1 1"/>
+              </body>
+            </body>
+            <body name="link_h_y" pos="0 0 0">
+              <joint name="hinge_h_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_y" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="0 0 1 1"/>
+              <body name="link_h_inner_y" pos="0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_y" axis="0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_y" type="capsule" fromto="0 0 0 0.0416314969 0 0.0293113578" rgba="0.4 0.4 1 1"/>
+                <site name="h_end_y" pos="0.0416314969 0 0.0293113578" rgba="0.5 0.5 1 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+        <site name="b_e_y" pos="0 0 0.06328" rgba="0.5 0.5 1 1"/>
+      </body>
+
+      <body name="link_m_r_y" pos="0.055 0.05 0" childclass="leg_contact">
+        <joint name="hinge_m_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_m_r_y" type="capsule" fromto="0 0 0 -0.02384 0 0" rgba="1 1 0 1"/>
+        <body name="link_j_r_y" pos="-0.02384 0 0" euler="0 -42 0">
+          <joint name="hinge_j_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_j_r_y" type="capsule" fromto="0 0 0 0.07870 0 0" rgba="1 1 0 1"/>
+          <site name="j_end_r_y" pos="0.07870 0 0" rgba="1 1 0.4 1"/>
+        </body>
+        <body name="link_k_r_y" pos="-0.02384 0 0" euler="0 42 0">
+          <joint name="hinge_k_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_k_outer_r_y" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="1 1 0 1"/>
+          <body name="link_k_inner_r_y" pos="0.04180 0 0">
+            <joint class="prismatic_joint" name="slide_k_r_y" axis="1 0 0"/>
+            <geom name="link_k_inner_r_y" type="capsule" fromto="0 0 0 0.04180 0 0" rgba="1 1 0.4 1"/>
+            <site name="k_end_r_y" pos="0.04180 0 0" rgba="1 1 0.5 1"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="link_c_r_y" pos="0.11404 0.05 0" euler="0 110 0" childclass="leg_contact">
+        <joint name="hinge_c_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="link_c_r_y" type="capsule" fromto="0 0 0 0.06006 0 0" rgba="1 1 0 1"/>
+        <site name="c_end_r_y" pos="0.06046 0 0" rgba="1 1 0.5 1"/>
+      </body>
+
+      <body name="triangle_link1_r_y" pos="0.11404 0.05 0" euler="0 -22 0" childclass="leg_contact">
+        <joint name="tri_hinge_r_y" type="hinge" pos="0 0 0"/>
+        <geom name="edge_b_r_y" type="capsule" fromto="0 0 0 0 0 0.06328" rgba="1 1 0 1"/>
+        <geom name="edge_e_r_y" type="capsule" fromto="0 0 0.06328 0.0600779625 0 -0.0019622756" rgba="1 1 0 1"/>
+        <geom name="edge_d_r_y" type="capsule" fromto="0.0600779625 0 -0.0019622756 0 0 0" rgba="1 1 0 1"/>
+        <body name="link_f_r_y" pos="0.0600779625 0 -0.0019622756" euler="0 135 0">
+          <joint name="hinge_f_r_y" type="hinge" pos="0 0 0"/>
+          <geom name="link_f_r_y_outer" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="1 1 0 1"/>
+          <body name="link_f_r_y_inner" pos="0.02836 0 0">
+            <joint class="prismatic_joint" name="slide_f_r_y" axis="1 0 0"/>
+            <geom name="link_f_r_y_inner" type="capsule" fromto="0 0 0 0.02836 0 0" rgba="1 1 0.4 1"/>
+            <body name="triangle_link2_r_y" pos="0.02836 0 0" euler="0 130 0">
+            <joint name="tri_hinge_ghi_r_y" type="hinge" pos="0 0 0"/>
+            <inertial pos="0 0 0" mass="1e-4" diaginertia="1e-8 1e-8 1e-8"/>
+            <body name="link_g_r_y" pos="0 0 0">
+              <joint name="hinge_g_r_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_g_r_y" type="capsule" fromto="0 0 0 0 0 0.05614" rgba="1 1 0 1"/>
+              <body name="link_i_r_y" pos="0 0 0.05614">
+                <joint name="hinge_i_r_y" type="hinge" pos="0 0 0"/>
+                <site name="g_i_r_y" pos="0 0 0" rgba="1 1 0.5 1"/>
+                <geom name="edge_i_r_y" type="capsule" fromto="0 0 0 -0.0832629937 0 0.0024827155" rgba="1 1 0 1"/>
+                <site name="h_match_r_y" pos="-0.0832629937 0 0.0024827155" rgba="1 1 0.5 1"/>
+              </body>
+            </body>
+            <body name="link_h_r_y" pos="0 0 0">
+              <joint name="hinge_h_r_y" type="hinge" pos="0 0 0"/>
+              <geom name="edge_h_outer_r_y" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="1 1 0 1"/>
+              <body name="link_h_inner_r_y" pos="-0.0416314969 0 0.0293113578">
+                <joint class="prismatic_joint" name="slide_h_r_y" axis="-0.8178 0 0.5755"/>
+                <geom name="edge_h_inner_r_y" type="capsule" fromto="0 0 0 -0.0416314969 0 0.0293113578" rgba="1 1 0.4 1"/>
+                <site name="h_end_r_y" pos="-0.0416314969 0 0.0293113578" rgba="1 1 0.5 1"/>
+              </body>
+            </body>
+            </body>
+          </body>
+        </body>
+        <site name="b_e_r_y" pos="0 0 0.06328" rgba="1 1 0.5 1"/>
+      </body>
+
+    </body>
+  </worldbody>
+<equality>
+  <!-- Minimal loop-closure set for this articulated topology: 4 connect constraints per leg. -->
+
+  <!-- Red leg closures -->
+  <connect name="j_to_be" site1="b_e" site2="j_end" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k" site1="c_end" site2="k_end" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi" site1="c_end" site2="g_i" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi" site1="k_end" site2="g_i" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_red" site1="h_end_red" site2="h_match_red" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Green leg closures -->
+  <connect name="j_to_be_r" site1="b_e_r" site2="j_end_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_r" site1="c_end_r" site2="k_end_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_r" site1="c_end_r" site2="g_i_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_r" site1="k_end_r" site2="g_i_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_r" site1="h_end_r" site2="h_match_r" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Blue leg closures -->
+  <connect name="j_to_be_y" site1="b_e_y" site2="j_end_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_y" site1="c_end_y" site2="k_end_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_y" site1="c_end_y" site2="g_i_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_y" site1="k_end_y" site2="g_i_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_y" site1="h_end_y" site2="h_match_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+
+  <!-- Yellow leg closures -->
+  <connect name="j_to_be_r_y" site1="b_e_r_y" site2="j_end_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_k_r_y" site1="c_end_r_y" site2="k_end_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="c_to_gi_r_y" site1="c_end_r_y" site2="g_i_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="k_to_gi_r_y" site1="k_end_r_y" site2="g_i_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+  <connect name="h_to_i_r_y" site1="h_end_r_y" site2="h_match_r_y" solref="0.003 3" solimp="0.999 0.99995 0.00005"/>
+</equality>
+  <actuator>
+    <velocity name="crank_motor" joint="hinge_m" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_r" joint="hinge_m_r" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_y" joint="hinge_m_y" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <velocity name="crank_motor_r_y" joint="hinge_m_r_y" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
+    <position name="h1_prismatic" joint="slide_h" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h2_prismatic" joint="slide_h_r" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h3_prismatic" joint="slide_h_y" kp="160000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h4_prismatic" joint="slide_h_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="k1_prismatic" joint="slide_k" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="k2_prismatic" joint="slide_k_r" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02  "/>
+    <position name="k3_prismatic" joint="slide_k_y" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>l
+    <position name="k4_prismatic" joint="slide_k_r_y" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f1_prismatic" joint="slide_f" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f2_prismatic" joint="slide_f_r" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f3_prismatic" joint="slide_f_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="f4_prismatic" joint="slide_f_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+  </actuator>    
+</mujoco>
+
+
