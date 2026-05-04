@@ -17,7 +17,7 @@ def latest_ppo_dir(base_dir: str) -> str:
     return max(runs, key=os.path.getmtime)
 
 
-def collect_reward_points(log_dir: str):
+def collect_reward_points(log_dir: str, tag: str = "rollout/ep_rew_mean"):
     event_files = sorted(
         glob.glob(os.path.join(log_dir, "events.out.tfevents.*")),
         key=os.path.getmtime,
@@ -30,14 +30,14 @@ def collect_reward_points(log_dir: str):
         ea = EventAccumulator(event_file)
         ea.Reload()
         tags = ea.Tags().get("scalars", [])
-        if "rollout/ep_rew_mean" not in tags:
+        if tag not in tags:
             continue
-        for e in ea.Scalars("rollout/ep_rew_mean"):
+        for e in ea.Scalars(tag):
             points.append((e.step, e.value, e.wall_time))
 
     if not points:
         raise RuntimeError(
-            "No 'rollout/ep_rew_mean' scalar found yet. "
+            f"No '{tag}' scalar found yet. "
             "Training may not have logged rewards yet."
         )
 
@@ -71,11 +71,12 @@ def plot_rewards(
     output_file: str = "plots/reward_current_active.png",
     from_step: int = None,
     to_step: int = None,
+    tag: str = "rollout/ep_rew_mean",
 ):
     if run_dir is None:
         run_dir = latest_ppo_dir(tensorboard_root)
 
-    steps, values = collect_reward_points(run_dir)
+    steps, values = collect_reward_points(run_dir, tag=tag)
 
     filtered = [
         (s, v)
@@ -100,13 +101,14 @@ def plot_rewards(
     plt.plot(x, smooth, color="#d62728", linewidth=2.0, label=f"moving avg (w={w})")
     plt.title(f"Reward Progress ({os.path.basename(run_dir)})")
     plt.xlabel("Timesteps")
-    plt.ylabel("Episode Reward Mean")
+    plt.ylabel(tag)
     plt.grid(alpha=0.3)
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_file, dpi=170)
 
     print(f"Run: {run_dir}")
+    print(f"Tag: {tag}")
     print(f"Saved: {output_file}")
     print(f"First: step={x[0]}, reward={y[0]:.4f}")
     print(f"Last: step={x[-1]}, reward={y[-1]:.4f}")
@@ -120,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=str, default="plots/reward_current_active.png")
     parser.add_argument("--from-step", type=int, default=None)
     parser.add_argument("--to-step", type=int, default=None)
+    parser.add_argument("--tag", type=str, default="rollout/ep_rew_mean")
     args = parser.parse_args()
 
     plot_rewards(
@@ -128,4 +131,5 @@ if __name__ == "__main__":
         output_file=args.out,
         from_step=args.from_step,
         to_step=args.to_step,
+        tag=args.tag,
     )

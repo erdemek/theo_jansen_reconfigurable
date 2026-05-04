@@ -4,10 +4,36 @@ import imageio.v2 as imageio
 import mujoco
 import numpy as np
 import torch
+from collections import defaultdict, deque
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from jansen_world import JansenEnv
+
+
+class RewardTermsTensorboardCallback(BaseCallback):
+    def __init__(self, window_size=100):
+        super().__init__()
+        self.window_size = window_size
+        self.episode_terms = defaultdict(lambda: deque(maxlen=self.window_size))
+
+    def _on_step(self):
+        for info in self.locals.get("infos", []):
+            terms = info.get("episode_reward_terms")
+            if terms is None:
+                continue
+            for name, value in terms.items():
+                self.episode_terms[name].append(float(value))
+
+        for name, values in self.episode_terms.items():
+            if values:
+                self.logger.record(
+                    f"rollout_reward_terms/{name}_mean",
+                    float(np.mean(values)),
+                )
+        return True
+
 
 def make_env(
     render=False,
@@ -22,6 +48,7 @@ def make_env(
     h_negative_amplitude=0.01,
     slew_rate=0.05,
     reset_settle_time=6.2,
+    train_prismatic_groups="kfh",
 ):
     """
     Utility function for multiprocessed env.
@@ -40,6 +67,7 @@ def make_env(
             h_negative_amplitude=h_negative_amplitude,
             k_slew_rate=slew_rate,
             reset_settle_time=reset_settle_time,
+            train_prismatic_groups=train_prismatic_groups,
         )
         if monitor_path:
             env = Monitor(env, monitor_path)
@@ -69,6 +97,7 @@ def train(
     h_negative_amplitude=0.01,
     slew_rate=0.05,
     reset_settle_time=6.2,
+    train_prismatic_groups="kfh",
 ):
     """
     Train the Jansen Walker using 6 Parallel Environments and GPU.
@@ -106,6 +135,7 @@ def train(
         f"f=[-{f_negative_amplitude}, +{f_positive_amplitude}] m | "
         f"h=[-{h_negative_amplitude}, +{h_positive_amplitude}] m"
     )
+    print(f"Train prismatic groups: {train_prismatic_groups}")
     
     # Create parallel environments
     # Note: only the first env can be rendered easily in some setups, 
@@ -124,6 +154,7 @@ def train(
                 h_negative_amplitude=h_negative_amplitude,
                 slew_rate=slew_rate,
                 reset_settle_time=reset_settle_time,
+                train_prismatic_groups=train_prismatic_groups,
             )
             for _ in range(n_envs)
         ])
@@ -142,6 +173,7 @@ def train(
                 h_negative_amplitude=h_negative_amplitude,
                 slew_rate=slew_rate,
                 reset_settle_time=reset_settle_time,
+                train_prismatic_groups=train_prismatic_groups,
             )
             for _ in range(n_envs)
         ])
@@ -169,6 +201,7 @@ def train(
             total_timesteps=timesteps,
             progress_bar=True,
             reset_num_timesteps=not bool(load_model),
+            callback=RewardTermsTensorboardCallback(),
         )
     except KeyboardInterrupt:
         print("Training interrupted. Saving progress...")
@@ -190,6 +223,7 @@ def analyze(
     h_negative_amplitude=0.01,
     slew_rate=0.05,
     reset_settle_time=6.2,
+    train_prismatic_groups="kfh",
 ):
     """
     Evaluate the model over N episodes and report the Best and Worst rewards.
@@ -212,6 +246,7 @@ def analyze(
         h_negative_amplitude=h_negative_amplitude,
         k_slew_rate=slew_rate,
         reset_settle_time=reset_settle_time,
+        train_prismatic_groups=train_prismatic_groups,
     )
     
     all_rewards = []
@@ -257,6 +292,7 @@ def evaluate(
     video_cam_distance=0.70,
     video_cam_lookat_y=0.0,
     video_cam_lookat_z=0.10,
+    train_prismatic_groups="kfh",
 ):
     """
     Visual evaluation.
@@ -279,6 +315,7 @@ def evaluate(
         h_negative_amplitude=h_negative_amplitude,
         k_slew_rate=slew_rate,
         reset_settle_time=reset_settle_time,
+        train_prismatic_groups=train_prismatic_groups,
     )
 
     if video_path:
@@ -360,6 +397,7 @@ if __name__ == "__main__":
     parser.add_argument("--h-negative-amplitude", type=float, default=0.01, help="H-link negative target magnitude in meters for all legs.")
     parser.add_argument("--slew-rate", type=float, default=0.05, help="Prismatic command slew rate in m/s.")
     parser.add_argument("--reset-settle-time", type=float, default=6.2, help="Reset settle duration in seconds.")
+    parser.add_argument("--train-prismatic-groups", type=str, default="kfh", help="Which prismatic groups are policy-controlled: k, f, h, or combinations like kfh/h.")
     parser.add_argument("--video", type=str, default=None, help="Record eval video to this MP4 path.")
     parser.add_argument("--video-duration", type=float, default=10.0, help="Eval video duration in simulated seconds.")
     parser.add_argument("--video-fps", type=int, default=60, help="Eval video FPS.")
@@ -395,6 +433,7 @@ if __name__ == "__main__":
             h_negative_amplitude=args.h_negative_amplitude,
             slew_rate=args.slew_rate,
             reset_settle_time=args.reset_settle_time,
+            train_prismatic_groups=args.train_prismatic_groups,
         )
     elif args.mode == "eval":
         evaluate(
@@ -419,6 +458,7 @@ if __name__ == "__main__":
             video_cam_distance=args.video_cam_distance,
             video_cam_lookat_y=args.video_cam_lookat_y,
             video_cam_lookat_z=args.video_cam_lookat_z,
+            train_prismatic_groups=args.train_prismatic_groups,
         )
     elif args.mode == "analyze":
         analyze(
@@ -433,4 +473,5 @@ if __name__ == "__main__":
             h_negative_amplitude=args.h_negative_amplitude,
             slew_rate=args.slew_rate,
             reset_settle_time=args.reset_settle_time,
+            train_prismatic_groups=args.train_prismatic_groups,
         )

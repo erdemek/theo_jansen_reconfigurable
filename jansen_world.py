@@ -26,6 +26,7 @@ class JansenEnv(gym.Env):
         h_negative_amplitude=None,
         k_slew_rate=0.05,
         reset_settle_time=6.2,
+        train_prismatic_groups="kfh",
     ):
         super(JansenEnv, self).__init__()
         self.render_mode = render_mode
@@ -74,9 +75,24 @@ class JansenEnv(gym.Env):
             if self.model.jnt_type[j] == mujoco.mjtJoint.mjJNT_HINGE:
                 self.hinge_dof_ids.append(self.model.jnt_dofadr[j])
 
-        # Action: target k/f/h extensions in normalized [-1, 1] for 4 legs (12 dim total).
-        # Each action is linearly mapped across that link group's min/max limits.
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(12,), dtype=np.float32)
+        self.train_prismatic_groups = "".join(
+            group for group in "kfh" if group in str(train_prismatic_groups).lower()
+        )
+        if not self.train_prismatic_groups:
+            raise ValueError("train_prismatic_groups must include at least one of: k, f, h")
+        self.train_prismatic_indices = []
+        for group in self.train_prismatic_groups:
+            if group == "k":
+                self.train_prismatic_indices.extend(range(0, 4))
+            elif group == "f":
+                self.train_prismatic_indices.extend(range(4, 8))
+            elif group == "h":
+                self.train_prismatic_indices.extend(range(8, 12))
+        self.train_prismatic_indices = np.array(self.train_prismatic_indices, dtype=np.int32)
+
+        # Action: normalized [-1, 1] targets for selected k/f/h groups.
+        # Untrained prismatic groups are held at zero target.
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(len(self.train_prismatic_indices),), dtype=np.float32)
         
         # Obs: Vel(6), Up(3), CrankPhase(8), k(4), f(4), h(4) = 29 dim
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(29,), dtype=np.float32)
@@ -98,25 +114,53 @@ class JansenEnv(gym.Env):
             dtype=np.float32,
         )
         self.prismatic_mid_targets = 0.5 * (self.prismatic_min_limits + self.prismatic_max_limits)
-        self.roll_penalty_gain = 30.0
-        self.roll_rate_penalty_gain = 4.0
-        self.lateral_velocity_penalty_gain = 5.0
-        self.heading_y_penalty_gain = 2.0
-        self.prismatic_target_change_penalty_gain = 10.0
+        self.initial_prismatic_targets = np.zeros(12, dtype=np.float32)
+        self.initial_prismatic_targets[self.train_prismatic_indices] = self.prismatic_mid_targets[self.train_prismatic_indices]
+        self.forward_reward_gain = 2000.0
+        self.forward_speed_reward_gain = 5.0
+        self.backward_speed_penalty_gain = 10.0
+        self.roll_penalty_gain = 6.0
+        self.roll_rate_penalty_gain = 2.0
+        self.heading_y_penalty_gain = 1.0
+        self.prismatic_target_change_penalty_gain = 2.0
+        self.y_corridor_penalty_gain = 1.0
         self.speed_cmd = 3.0
         self.max_steps = 10000
         self.reset_settle_time = float(reset_settle_time)
         self.current_step = 0
-        self.k_extension_states = self.prismatic_mid_targets[0:4].copy()
-        self.f_extension_states = self.prismatic_mid_targets[4:8].copy()
-        self.h_extension_states = self.prismatic_mid_targets[8:12].copy()
-        self.prev_action = self.prismatic_mid_targets.copy()
+        self.y_start = 0.0
+        self.k_extension_states = self.initial_prismatic_targets[0:4].copy()
+        self.f_extension_states = self.initial_prismatic_targets[4:8].copy()
+        self.h_extension_states = self.initial_prismatic_targets[8:12].copy()
+        self.prev_action = self.initial_prismatic_targets.copy()
         self.real_time_start = 0
+        self.reward_term_names = [
+            "forward",
+            "forward_speed",
+            "backward_speed",
+            "roll_pitch_rate",
+            "side_roll",
+            "heading",
+            "y_corridor",
+            "prismatic_change",
+            "survival",
+            "fall",
+        ]
+        self.episode_reward_terms = {name: 0.0 for name in self.reward_term_names}
 
     def _action_to_prismatic_targets(self, action):
         clipped_action = np.clip(action, -1.0, 1.0).astype(np.float32)
         action_01 = 0.5 * (clipped_action + 1.0)
-        return self.prismatic_min_limits + action_01 * (self.prismatic_max_limits - self.prismatic_min_limits)
+        selected_targets = (
+            self.prismatic_min_limits[self.train_prismatic_indices]
+            + action_01 * (
+                self.prismatic_max_limits[self.train_prismatic_indices]
+                - self.prismatic_min_limits[self.train_prismatic_indices]
+            )
+        )
+        prismatic_targets = np.zeros(12, dtype=np.float32)
+        prismatic_targets[self.train_prismatic_indices] = selected_targets
+        return prismatic_targets
 
     def _apply_prismatic_ctrl(self):
         for i in range(4):
@@ -163,14 +207,16 @@ class JansenEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
             
         self.damping_switched = False
-        self.k_extension_states = self.prismatic_mid_targets[0:4].copy()
-        self.f_extension_states = self.prismatic_mid_targets[4:8].copy()
-        self.h_extension_states = self.prismatic_mid_targets[8:12].copy()
-        self.prev_action = self.prismatic_mid_targets.copy()
+        self.k_extension_states = self.initial_prismatic_targets[0:4].copy()
+        self.f_extension_states = self.initial_prismatic_targets[4:8].copy()
+        self.h_extension_states = self.initial_prismatic_targets[8:12].copy()
+        self.prev_action = self.initial_prismatic_targets.copy()
         self._apply_prismatic_ctrl()
         mujoco.mj_forward(self.model, self.data)
         self.current_step = 0
+        self.y_start = float(self.data.qpos[self.plate_qadr + 1])
         self.real_time_start = time.perf_counter()
+        self.episode_reward_terms = {name: 0.0 for name in self.reward_term_names}
         return self._get_obs(), {}
 
     def step(self, action):
@@ -214,32 +260,39 @@ class JansenEnv(gym.Env):
         wx, wy, wz = obs[3:6]
         plate_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "plate_body")
         heading_y = float(self.data.xmat[plate_body_id][1])
+        y_error = float(self.data.qpos[self.plate_qadr + 1] - self.y_start)
         
-        # Forward reward
-        reward = (x_before - self.data.qpos[self.plate_qadr]) * 1000.0 
-        
-        # FLUCTUATION PUNISHMENT (Aggressive)
-        reward -= abs(vz) * 10.0  # Bobbing (was 2.0)
-        reward -= abs(vy) * self.lateral_velocity_penalty_gain
-        
-        # TILT PUNISHMENT (Keep body level)
-        # up_z is obs[8], perfectly vertical is 1.0
-        reward -= (1.0 - up_z) * 20.0 
-        # Explicit roll suppression: up_y departs from 0 as body rolls.
-        reward -= abs(up_y) * self.roll_penalty_gain
-        # Roll/pitch rate damping to reduce rocking dynamics.
-        reward -= (abs(wx) + abs(wy)) * self.roll_rate_penalty_gain
-        reward -= abs(heading_y) * self.heading_y_penalty_gain
-        reward -= self.prismatic_target_change_penalty_gain * float(np.sum(np.abs(prismatic_targets - self.prev_action)))
+        reward_terms = {
+            "forward": (x_before - self.data.qpos[self.plate_qadr]) * self.forward_reward_gain,
+            "forward_speed": self.forward_speed_reward_gain * max(-float(vx), 0.0),
+            "backward_speed": -self.backward_speed_penalty_gain * max(float(vx), 0.0),
+            "roll_pitch_rate": -(abs(wx) + abs(wy)) * self.roll_rate_penalty_gain,
+            "side_roll": -abs(up_y) * self.roll_penalty_gain,
+            "heading": -abs(heading_y) * self.heading_y_penalty_gain,
+            "y_corridor": -self.y_corridor_penalty_gain * abs(y_error),
+            "prismatic_change": -self.prismatic_target_change_penalty_gain * float(np.sum(np.abs(prismatic_targets - self.prev_action))),
+            "survival": 0.5,
+            "fall": 0.0,
+        }
+        reward_terms = {name: float(value) for name, value in reward_terms.items()}
         self.prev_action = prismatic_targets.copy()
-        
-        reward += 0.5            # Survival
-        
+
         terminated = up_z < 0.6 or self.data.qpos[self.plate_qadr+2] < 0.05
-        if terminated: reward -= 500.0 # Heavier fall penalty
-        
+        if terminated:
+            reward_terms["fall"] = -500.0
+
+        reward = float(sum(reward_terms.values()))
+        for name, value in reward_terms.items():
+            self.episode_reward_terms[name] += float(value)
+
         self.current_step += 1
-        return obs, float(reward), terminated, self.current_step >= self.max_steps, {}
+        truncated = self.current_step >= self.max_steps
+        info = {
+            "reward_terms": reward_terms,
+        }
+        if terminated or truncated:
+            info["episode_reward_terms"] = self.episode_reward_terms.copy()
+        return obs, reward, terminated, truncated, info
 
     def close(self):
         if self.viewer: self.viewer.close()

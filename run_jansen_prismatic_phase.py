@@ -67,7 +67,7 @@ parser.add_argument("--reach-tolerance", type=float, default=1e-4, help="Flip co
 parser.add_argument("--crank-run-speed", type=float, default=4, help="Post-settle crank speed command magnitude (rad/s)")
 args = parser.parse_args()
 
-model = mujoco.MjModel.from_xml_path("jansen_assembly_rolling_hills.xml")
+model = mujoco.MjModel.from_xml_path("jansen_assembly_red_articulated.xml")
 data = mujoco.MjData(model)
 
 # Crank actuators and crank joints for settle phase.
