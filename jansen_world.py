@@ -118,12 +118,13 @@ class JansenEnv(gym.Env):
         self.initial_prismatic_targets[self.train_prismatic_indices] = self.prismatic_mid_targets[self.train_prismatic_indices]
         self.forward_reward_gain = 2000.0
         self.forward_speed_reward_gain = 5.0
-        self.backward_speed_penalty_gain = 10.0
         self.roll_penalty_gain = 6.0
         self.roll_rate_penalty_gain = 2.0
-        self.heading_y_penalty_gain = 1.0
-        self.prismatic_target_change_penalty_gain = 2.0
-        self.y_corridor_penalty_gain = 1.0
+        # Keep these previous gains for later experiments; they are not active now.
+        # self.backward_speed_penalty_gain = 10.0
+        # self.heading_y_penalty_gain = 3.0
+        # self.prismatic_target_change_penalty_gain = 2.0
+        # self.y_corridor_penalty_gain = 1.0
         self.speed_cmd = 3.0
         self.max_steps = 10000
         self.reset_settle_time = float(reset_settle_time)
@@ -135,14 +136,10 @@ class JansenEnv(gym.Env):
         self.prev_action = self.initial_prismatic_targets.copy()
         self.real_time_start = 0
         self.reward_term_names = [
-            "forward",
+            "forward_progress",
             "forward_speed",
-            "backward_speed",
             "roll_pitch_rate",
             "side_roll",
-            "heading",
-            "y_corridor",
-            "prismatic_change",
             "survival",
             "fall",
         ]
@@ -258,19 +255,12 @@ class JansenEnv(gym.Env):
         up_z = obs[8]
         vx, vy, vz = obs[0:3]
         wx, wy, wz = obs[3:6]
-        plate_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "plate_body")
-        heading_y = float(self.data.xmat[plate_body_id][1])
-        y_error = float(self.data.qpos[self.plate_qadr + 1] - self.y_start)
         
         reward_terms = {
-            "forward": (x_before - self.data.qpos[self.plate_qadr]) * self.forward_reward_gain,
-            "forward_speed": self.forward_speed_reward_gain * max(-float(vx), 0.0),
-            "backward_speed": -self.backward_speed_penalty_gain * max(float(vx), 0.0),
+            "forward_progress": (self.data.qpos[self.plate_qadr] - x_before) * self.forward_reward_gain,
+            "forward_speed": self.forward_speed_reward_gain * float(vx),
             "roll_pitch_rate": -(abs(wx) + abs(wy)) * self.roll_rate_penalty_gain,
             "side_roll": -abs(up_y) * self.roll_penalty_gain,
-            "heading": -abs(heading_y) * self.heading_y_penalty_gain,
-            "y_corridor": -self.y_corridor_penalty_gain * abs(y_error),
-            "prismatic_change": -self.prismatic_target_change_penalty_gain * float(np.sum(np.abs(prismatic_targets - self.prev_action))),
             "survival": 0.5,
             "fall": 0.0,
         }

@@ -13,9 +13,13 @@ from jansen_world import JansenEnv
 
 
 class RewardTermsTensorboardCallback(BaseCallback):
-    def __init__(self, window_size=100):
+    def __init__(self, window_size=100, checkpoint_freq=0, checkpoint_dir="checkpoints", checkpoint_prefix="checkpoint"):
         super().__init__()
         self.window_size = window_size
+        self.checkpoint_freq = int(checkpoint_freq)
+        self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_prefix = checkpoint_prefix
+        self.last_checkpoint_step = 0
         self.episode_terms = defaultdict(lambda: deque(maxlen=self.window_size))
 
     def _on_step(self):
@@ -32,6 +36,19 @@ class RewardTermsTensorboardCallback(BaseCallback):
                     f"rollout_reward_terms/{name}_mean",
                     float(np.mean(values)),
                 )
+
+        if self.checkpoint_freq > 0:
+            current_step = int(self.num_timesteps)
+            if current_step - self.last_checkpoint_step >= self.checkpoint_freq:
+                os.makedirs(self.checkpoint_dir, exist_ok=True)
+                checkpoint_m = current_step // 1_000_000
+                path = os.path.join(
+                    self.checkpoint_dir,
+                    f"{self.checkpoint_prefix}_{checkpoint_m}M_steps",
+                )
+                self.model.save(path)
+                self.last_checkpoint_step = current_step
+                print(f"Saved checkpoint: {path}.zip")
         return True
 
 
@@ -98,6 +115,8 @@ def train(
     slew_rate=0.05,
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
+    checkpoint_freq=0,
+    checkpoint_dir="checkpoints",
 ):
     """
     Train the Jansen Walker using 6 Parallel Environments and GPU.
@@ -201,7 +220,11 @@ def train(
             total_timesteps=timesteps,
             progress_bar=True,
             reset_num_timesteps=not bool(load_model),
-            callback=RewardTermsTensorboardCallback(),
+            callback=RewardTermsTensorboardCallback(
+                checkpoint_freq=checkpoint_freq,
+                checkpoint_dir=checkpoint_dir,
+                checkpoint_prefix=model_name,
+            ),
         )
     except KeyboardInterrupt:
         print("Training interrupted. Saving progress...")
@@ -398,6 +421,8 @@ if __name__ == "__main__":
     parser.add_argument("--slew-rate", type=float, default=0.05, help="Prismatic command slew rate in m/s.")
     parser.add_argument("--reset-settle-time", type=float, default=6.2, help="Reset settle duration in seconds.")
     parser.add_argument("--train-prismatic-groups", type=str, default="kfh", help="Which prismatic groups are policy-controlled: k, f, h, or combinations like kfh/h.")
+    parser.add_argument("--checkpoint-freq", type=int, default=0, help="Save a checkpoint every N timesteps during training. Use 0 to disable.")
+    parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory for periodic training checkpoints.")
     parser.add_argument("--video", type=str, default=None, help="Record eval video to this MP4 path.")
     parser.add_argument("--video-duration", type=float, default=10.0, help="Eval video duration in simulated seconds.")
     parser.add_argument("--video-fps", type=int, default=60, help="Eval video FPS.")
@@ -434,6 +459,8 @@ if __name__ == "__main__":
             slew_rate=args.slew_rate,
             reset_settle_time=args.reset_settle_time,
             train_prismatic_groups=args.train_prismatic_groups,
+            checkpoint_freq=args.checkpoint_freq,
+            checkpoint_dir=args.checkpoint_dir,
         )
     elif args.mode == "eval":
         evaluate(
