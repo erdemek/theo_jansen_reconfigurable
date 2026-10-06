@@ -112,10 +112,6 @@ def write_xml(
     )
     xml = xml.replace("  </asset>", asset_block + "  </asset>", 1)
 
-    old_ground = (
-        '    <geom name="ground" type="plane" pos="0 0 0" size="9 9 0.1" '
-        'material="ground_mat" friction="0.1 0.08 0.01" contype="2" conaffinity="1"/>'
-    )
     new_ground = (
         '    <geom name="ground" type="plane" pos="0 0 -0.008" size="12 12 0.1" '
         'rgba="0.17 0.22 0.15 1" friction="0.16 0.09 0.02" contype="2" conaffinity="1"/>\n'
@@ -130,10 +126,12 @@ def write_xml(
         '          contype="2"\n'
         '          conaffinity="1"/>'
     )
-    if old_ground not in xml:
+    ground_start = xml.find('<geom name="ground"')
+    ground_end = xml.find("/>", ground_start)
+    if ground_start < 0 or ground_end < 0:
         raise RuntimeError("Could not find the base ground geom to replace.")
-
-    xml = xml.replace(old_ground, new_ground, 1)
+    line_start = xml.rfind("\n", 0, ground_start) + 1
+    xml = xml[:line_start] + new_ground + xml[ground_end + 2:]
     xml = xml.replace('<mujoco model="jansen_assembly">', '<mujoco model="jansen_rolling_hills">', 1)
 
     out_dir = os.path.dirname(out_xml)

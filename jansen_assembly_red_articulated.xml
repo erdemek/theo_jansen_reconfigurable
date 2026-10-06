@@ -353,7 +353,7 @@
     <velocity name="crank_motor_r_y" joint="hinge_m_r_y" kv="25" ctrllimited="true" ctrlrange="-80 80"/>
     <position name="h1_prismatic" joint="slide_h" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
     <position name="h2_prismatic" joint="slide_h_r" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
-    <position name="h3_prismatic" joint="slide_h_y" kp="160000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
+    <position name="h3_prismatic" joint="slide_h_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
     <position name="h4_prismatic" joint="slide_h_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
     <position name="k1_prismatic" joint="slide_k" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
     <position name="k2_prismatic" joint="slide_k_r" kp="3200000" ctrllimited="true" ctrlrange="-0.02 0.02  "/>
@@ -365,4 +365,3 @@
     <position name="f4_prismatic" joint="slide_f_r_y" kp="1600000" ctrllimited="true" ctrlrange="-0.02 0.02"/>
   </actuator>    
 </mujoco>
-

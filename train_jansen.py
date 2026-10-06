@@ -12,15 +12,72 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from jansen_world import JansenEnv
 
 
+def with_zip_suffix(path):
+    path = str(path)
+    return path if path.lower().endswith(".zip") else path + ".zip"
+
+
+def without_zip_suffix(path):
+    path = str(path)
+    return path[:-4] if path.lower().endswith(".zip") else path
+
+
+def resolve_model_path(path):
+    path = str(path)
+    if os.path.exists(path):
+        return path
+    zip_path = with_zip_suffix(path)
+    if os.path.exists(zip_path):
+        return zip_path
+    if path.lower().endswith(".zip"):
+        no_zip_path = without_zip_suffix(path)
+        if os.path.exists(no_zip_path):
+            return no_zip_path
+    raise FileNotFoundError(
+        f"Model file not found. Tried '{path}' and '{zip_path}'."
+    )
+
+
 class RewardTermsTensorboardCallback(BaseCallback):
-    def __init__(self, window_size=100, checkpoint_freq=0, checkpoint_dir="checkpoints", checkpoint_prefix="checkpoint"):
+    def __init__(
+        self,
+        window_size=100,
+        checkpoint_freq=0,
+        checkpoint_dir="checkpoints",
+        checkpoint_prefix="checkpoint",
+        # Reverted from the -2.3 experiment (std ~= 0.10) back to -3.0
+        # (std ~= 0.05) after the higher minimum disturbed gait refinement.
+        min_log_std=-3.0,
+        max_log_std=0.0,
+    ):
         super().__init__()
         self.window_size = window_size
         self.checkpoint_freq = int(checkpoint_freq)
         self.checkpoint_dir = checkpoint_dir
         self.checkpoint_prefix = checkpoint_prefix
+        self.min_log_std = float(min_log_std)
+        self.max_log_std = float(max_log_std)
         self.last_checkpoint_step = 0
         self.episode_terms = defaultdict(lambda: deque(maxlen=self.window_size))
+
+    def _clamp_policy_log_std(self):
+        log_std = getattr(self.model.policy, "log_std", None)
+        if log_std is None:
+            return
+        # Original behavior: PPO's learned log_std was unconstrained.
+        # Keep normalized action std in [exp(-3), exp(0)] ~= [0.05, 1.0].
+        # The -2.3 lower-clamp experiment forced std ~= 0.10 minimum and made
+        # the fwd6000/sideroll6 run less able to settle into a clean gait.
+        with torch.no_grad():
+            log_std.clamp_(self.min_log_std, self.max_log_std)
+
+    def _on_rollout_start(self):
+        # This runs after the previous PPO update and before collecting new actions.
+        self._clamp_policy_log_std()
+
+    def _on_training_end(self):
+        # Also clamp the final update before the trained model is saved.
+        self._clamp_policy_log_std()
 
     def _on_step(self):
         for info in self.locals.get("infos", []):
@@ -42,13 +99,13 @@ class RewardTermsTensorboardCallback(BaseCallback):
             if current_step - self.last_checkpoint_step >= self.checkpoint_freq:
                 os.makedirs(self.checkpoint_dir, exist_ok=True)
                 checkpoint_m = current_step // 1_000_000
-                path = os.path.join(
+                path = with_zip_suffix(os.path.join(
                     self.checkpoint_dir,
                     f"{self.checkpoint_prefix}_{checkpoint_m}M_steps",
-                )
+                ))
                 self.model.save(path)
                 self.last_checkpoint_step = current_step
-                print(f"Saved checkpoint: {path}.zip")
+                print(f"Saved checkpoint: {path}")
         return True
 
 
@@ -64,8 +121,10 @@ def make_env(
     f_negative_amplitude=0.0,
     h_negative_amplitude=0.01,
     slew_rate=0.05,
+    prismatic_max_acceleration=0.0,
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
+    reward_preset="h_only_straight_walk",
 ):
     """
     Utility function for multiprocessed env.
@@ -83,8 +142,10 @@ def make_env(
             f_negative_amplitude=f_negative_amplitude,
             h_negative_amplitude=h_negative_amplitude,
             k_slew_rate=slew_rate,
+            prismatic_max_acceleration=prismatic_max_acceleration,
             reset_settle_time=reset_settle_time,
             train_prismatic_groups=train_prismatic_groups,
+            reward_preset=reward_preset,
         )
         if monitor_path:
             env = Monitor(env, monitor_path)
@@ -113,8 +174,10 @@ def train(
     f_negative_amplitude=0.0,
     h_negative_amplitude=0.01,
     slew_rate=0.05,
+    prismatic_max_acceleration=0.0,
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
+    reward_preset="h_only_straight_walk",
     checkpoint_freq=0,
     checkpoint_dir="checkpoints",
 ):
@@ -127,23 +190,29 @@ def train(
         device = device_preference
 
     # Optional GPU-focused profile: bigger model + bigger batches.
-    policy_kwargs = {}
+    # Original: policy_kwargs = {}
+    # Start each normalized action dimension at std=exp(-1) ~= 0.37 instead
+    # of std=1.0, reducing early action clipping while retaining exploration.
+    policy_kwargs = dict(log_std_init=-1.0)
     if gpu_heavy and device == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
         n_steps = max(n_steps, 4096)
         batch_size = max(batch_size, 2048)
         n_epochs = max(n_epochs, 20)
-        policy_kwargs = dict(net_arch=[512, 512, 256])
+        # Original: policy_kwargs = dict(net_arch=[512, 512, 256])
+        policy_kwargs = dict(net_arch=[512, 512, 256], log_std_init=-1.0)
 
     rollout_size = n_steps * n_envs
     if batch_size > rollout_size:
         batch_size = rollout_size
+    model_save_path = with_zip_suffix(model_name)
+    checkpoint_prefix = without_zip_suffix(os.path.basename(model_name))
 
     print(f"Starting Multi-Env Training on {device.upper()}")
-    print(f"Parameters: {timesteps} steps | {n_envs} parallel envs | -> {model_name}.zip")
+    print(f"Parameters: {timesteps} steps | {n_envs} parallel envs | -> {model_save_path}")
     if load_model:
-        print(f"Resume from: {load_model}.zip")
+        print(f"Resume from: {resolve_model_path(load_model)}")
     print(
         f"PPO: n_steps={n_steps} | batch_size={batch_size} | n_epochs={n_epochs} | "
         f"rollout={rollout_size} | gpu_heavy={gpu_heavy and device == 'cuda'}"
@@ -155,6 +224,11 @@ def train(
         f"h=[-{h_negative_amplitude}, +{h_positive_amplitude}] m"
     )
     print(f"Train prismatic groups: {train_prismatic_groups}")
+    print(
+        "Prismatic max acceleration: "
+        f"{prismatic_max_acceleration if prismatic_max_acceleration > 0.0 else 'disabled'}"
+    )
+    print(f"Reward preset: {reward_preset}")
     
     # Create parallel environments
     # Note: only the first env can be rendered easily in some setups, 
@@ -172,8 +246,10 @@ def train(
                 f_negative_amplitude=f_negative_amplitude,
                 h_negative_amplitude=h_negative_amplitude,
                 slew_rate=slew_rate,
+                prismatic_max_acceleration=prismatic_max_acceleration,
                 reset_settle_time=reset_settle_time,
                 train_prismatic_groups=train_prismatic_groups,
+                reward_preset=reward_preset,
             )
             for _ in range(n_envs)
         ])
@@ -191,14 +267,16 @@ def train(
                 f_negative_amplitude=f_negative_amplitude,
                 h_negative_amplitude=h_negative_amplitude,
                 slew_rate=slew_rate,
+                prismatic_max_acceleration=prismatic_max_acceleration,
                 reset_settle_time=reset_settle_time,
                 train_prismatic_groups=train_prismatic_groups,
+                reward_preset=reward_preset,
             )
             for _ in range(n_envs)
         ])
     
     if load_model:
-        model = PPO.load(load_model, env=env, device=device)
+        model = PPO.load(resolve_model_path(load_model), env=env, device=device)
     else:
         model = PPO(
             "MlpPolicy", 
@@ -208,7 +286,9 @@ def train(
             n_steps=n_steps,
             batch_size=batch_size,
             n_epochs=n_epochs,
-            ent_coef=0.01,
+            # Original: ent_coef=0.01,
+            # Disable the entropy bonus that previously drove std above 2000.
+            ent_coef=0.0,
             device=device,
             policy_kwargs=policy_kwargs,
             tensorboard_log="./tensorboard_logs/"
@@ -223,15 +303,15 @@ def train(
             callback=RewardTermsTensorboardCallback(
                 checkpoint_freq=checkpoint_freq,
                 checkpoint_dir=checkpoint_dir,
-                checkpoint_prefix=model_name,
+                checkpoint_prefix=checkpoint_prefix,
             ),
         )
     except KeyboardInterrupt:
         print("Training interrupted. Saving progress...")
         
-    model.save(model_name)
+    model.save(model_save_path)
     env.close()
-    print(f"Training Complete. Model saved as {model_name}.zip")
+    print(f"Training Complete. Model saved as {model_save_path}")
 
 def analyze(
     model_path="jansen_rl_expert_2M",
@@ -245,18 +325,22 @@ def analyze(
     f_negative_amplitude=0.0,
     h_negative_amplitude=0.01,
     slew_rate=0.05,
+    prismatic_max_acceleration=0.0,
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
+    reward_preset="h_only_straight_walk",
 ):
     """
     Evaluate the model over N episodes and report the Best and Worst rewards.
     """
-    if not os.path.exists(model_path + ".zip"):
-        print(f"Error: Model file '{model_path}.zip' not found.")
+    try:
+        resolved_model_path = resolve_model_path(model_path)
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}")
         return
 
-    print(f"Analyzing {model_path} over {episodes} episodes...")
-    model = PPO.load(model_path)
+    print(f"Analyzing {resolved_model_path} over {episodes} episodes...")
+    model = PPO.load(resolved_model_path)
     env = JansenEnv(
         render_mode=None,
         xml_path=xml_path,
@@ -268,8 +352,10 @@ def analyze(
         f_negative_amplitude=f_negative_amplitude,
         h_negative_amplitude=h_negative_amplitude,
         k_slew_rate=slew_rate,
+        prismatic_max_acceleration=prismatic_max_acceleration,
         reset_settle_time=reset_settle_time,
         train_prismatic_groups=train_prismatic_groups,
+        reward_preset=reward_preset,
     )
     
     all_rewards = []
@@ -304,6 +390,7 @@ def evaluate(
     f_negative_amplitude=0.0,
     h_negative_amplitude=0.01,
     slew_rate=0.05,
+    prismatic_max_acceleration=0.0,
     reset_settle_time=6.2,
     video_path=None,
     video_duration=10.0,
@@ -316,15 +403,18 @@ def evaluate(
     video_cam_lookat_y=0.0,
     video_cam_lookat_z=0.10,
     train_prismatic_groups="kfh",
+    reward_preset="h_only_straight_walk",
 ):
     """
     Visual evaluation.
     """
-    if not os.path.exists(model_path + ".zip"):
-        print(f"Error: Model file '{model_path}.zip' not found.")
+    try:
+        resolved_model_path = resolve_model_path(model_path)
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}")
         return
 
-    model = PPO.load(model_path)
+    model = PPO.load(resolved_model_path)
     render_mode = None if video_path else "human"
     env = JansenEnv(
         render_mode=render_mode,
@@ -337,8 +427,10 @@ def evaluate(
         f_negative_amplitude=f_negative_amplitude,
         h_negative_amplitude=h_negative_amplitude,
         k_slew_rate=slew_rate,
+        prismatic_max_acceleration=prismatic_max_acceleration,
         reset_settle_time=reset_settle_time,
         train_prismatic_groups=train_prismatic_groups,
+        reward_preset=reward_preset,
     )
 
     if video_path:
@@ -414,13 +506,31 @@ if __name__ == "__main__":
     parser.add_argument("--prismatic-cmd-limit", type=float, default=0.005, help="Prismatic target command magnitude limit in meters.")
     parser.add_argument("--k-positive-amplitude", type=float, default=0.01, help="K-link positive target limit in meters for all legs.")
     parser.add_argument("--f-positive-amplitude", type=float, default=0.002, help="F-link positive target limit in meters for all legs.")
-    parser.add_argument("--h-positive-amplitude", type=float, default=0.01, help="H-link positive target limit in meters for all legs.")
+    # Rolling-hills default: allow h to command +-20 mm when the XML supports it.
+    parser.add_argument("--h-positive-amplitude", type=float, default=0.02, help="H-link positive target limit in meters for all legs.")
     parser.add_argument("--k-negative-amplitude", type=float, default=0.0, help="K-link negative target magnitude in meters for all legs.")
     parser.add_argument("--f-negative-amplitude", type=float, default=0.0, help="F-link negative target magnitude in meters for all legs.")
-    parser.add_argument("--h-negative-amplitude", type=float, default=0.01, help="H-link negative target magnitude in meters for all legs.")
+    parser.add_argument("--h-negative-amplitude", type=float, default=0.02, help="H-link negative target magnitude in meters for all legs.")
     parser.add_argument("--slew-rate", type=float, default=0.05, help="Prismatic command slew rate in m/s.")
+    parser.add_argument(
+        "--prismatic-max-acceleration",
+        type=float,
+        default=0.0,
+        help="Post-PPO29 trial acceleration limit in m/s^2. Use 0 to preserve the original PPO29 behavior.",
+    )
     parser.add_argument("--reset-settle-time", type=float, default=6.2, help="Reset settle duration in seconds.")
     parser.add_argument("--train-prismatic-groups", type=str, default="kfh", help="Which prismatic groups are policy-controlled: k, f, h, or combinations like kfh/h.")
+    parser.add_argument(
+        "--reward-preset",
+        type=str,
+        choices=[
+            "h_only_straight_walk",
+            "h_only_straight_walk_survival_2_action_penalty",
+            "h_only_straight_walk_normalized_fullscale",
+        ],
+        default="h_only_straight_walk",
+        help="Reward equation preset.",
+    )
     parser.add_argument("--checkpoint-freq", type=int, default=0, help="Save a checkpoint every N timesteps during training. Use 0 to disable.")
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory for periodic training checkpoints.")
     parser.add_argument("--video", type=str, default=None, help="Record eval video to this MP4 path.")
@@ -457,8 +567,10 @@ if __name__ == "__main__":
             f_negative_amplitude=args.f_negative_amplitude,
             h_negative_amplitude=args.h_negative_amplitude,
             slew_rate=args.slew_rate,
+            prismatic_max_acceleration=args.prismatic_max_acceleration,
             reset_settle_time=args.reset_settle_time,
             train_prismatic_groups=args.train_prismatic_groups,
+            reward_preset=args.reward_preset,
             checkpoint_freq=args.checkpoint_freq,
             checkpoint_dir=args.checkpoint_dir,
         )
@@ -474,6 +586,7 @@ if __name__ == "__main__":
             f_negative_amplitude=args.f_negative_amplitude,
             h_negative_amplitude=args.h_negative_amplitude,
             slew_rate=args.slew_rate,
+            prismatic_max_acceleration=args.prismatic_max_acceleration,
             reset_settle_time=args.reset_settle_time,
             video_path=args.video,
             video_duration=args.video_duration,
@@ -486,6 +599,7 @@ if __name__ == "__main__":
             video_cam_lookat_y=args.video_cam_lookat_y,
             video_cam_lookat_z=args.video_cam_lookat_z,
             train_prismatic_groups=args.train_prismatic_groups,
+            reward_preset=args.reward_preset,
         )
     elif args.mode == "analyze":
         analyze(
@@ -499,6 +613,8 @@ if __name__ == "__main__":
             f_negative_amplitude=args.f_negative_amplitude,
             h_negative_amplitude=args.h_negative_amplitude,
             slew_rate=args.slew_rate,
+            prismatic_max_acceleration=args.prismatic_max_acceleration,
             reset_settle_time=args.reset_settle_time,
             train_prismatic_groups=args.train_prismatic_groups,
+            reward_preset=args.reward_preset,
         )

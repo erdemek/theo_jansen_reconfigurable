@@ -25,8 +25,10 @@ class JansenEnv(gym.Env):
         f_negative_amplitude=None,
         h_negative_amplitude=None,
         k_slew_rate=0.05,
+        prismatic_max_acceleration=0.0,
         reset_settle_time=6.2,
         train_prismatic_groups="kfh",
+        reward_preset="h_only_straight_walk",
     ):
         super(JansenEnv, self).__init__()
         self.render_mode = render_mode
@@ -80,6 +82,14 @@ class JansenEnv(gym.Env):
         )
         if not self.train_prismatic_groups:
             raise ValueError("train_prismatic_groups must include at least one of: k, f, h")
+        self.reward_preset = str(reward_preset).lower()
+        valid_reward_presets = {
+            "h_only_straight_walk",
+            "h_only_straight_walk_survival_2_action_penalty",
+            "h_only_straight_walk_normalized_fullscale",
+        }
+        if self.reward_preset not in valid_reward_presets:
+            raise ValueError(f"reward_preset must be one of: {sorted(valid_reward_presets)}")
         self.train_prismatic_indices = []
         for group in self.train_prismatic_groups:
             if group == "k":
@@ -98,6 +108,11 @@ class JansenEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(29,), dtype=np.float32)
 
         self.k_slew_rate = float(k_slew_rate)
+        # Post-PPO29 trial: optional acceleration limiting was introduced after
+        # PPO29 was trained. Keep 0.0 as the default to reproduce PPO29 exactly.
+        self.prismatic_max_acceleration = float(prismatic_max_acceleration)
+        if self.prismatic_max_acceleration < 0.0:
+            raise ValueError("prismatic_max_acceleration must be >= 0")
         self.prismatic_cmd_limit = float(prismatic_cmd_limit)
         k_positive_amplitude = self.prismatic_cmd_limit if k_positive_amplitude is None else abs(float(k_positive_amplitude))
         f_positive_amplitude = self.prismatic_cmd_limit if f_positive_amplitude is None else abs(float(f_positive_amplitude))
@@ -116,23 +131,57 @@ class JansenEnv(gym.Env):
         self.prismatic_mid_targets = 0.5 * (self.prismatic_min_limits + self.prismatic_max_limits)
         self.initial_prismatic_targets = np.zeros(12, dtype=np.float32)
         self.initial_prismatic_targets[self.train_prismatic_indices] = self.prismatic_mid_targets[self.train_prismatic_indices]
-        self.forward_reward_gain = 2000.0
-        self.forward_speed_reward_gain = 5.0
-        self.roll_penalty_gain = 6.0
-        self.roll_rate_penalty_gain = 2.0
-        # Keep these previous gains for later experiments; they are not active now.
-        # self.backward_speed_penalty_gain = 10.0
-        # self.heading_y_penalty_gain = 3.0
-        # self.prismatic_target_change_penalty_gain = 2.0
-        # self.y_corridor_penalty_gain = 1.0
+        if self.reward_preset == "h_only_straight_walk_survival_2_action_penalty":
+            self.fall_penalty = 0.0
+            self.survival_reward = 0.0
+            self.forward_progress_reward_gain = 2000.0
+            self.forward_speed_reward_gain = 0.0
+            self.roll_pitch_rate_penalty_gain = 0.0
+            self.side_roll_penalty_gain = 0.0
+            self.action_penalty_weight = 0.0
+        elif self.reward_preset == "h_only_straight_walk_normalized_fullscale":
+            self.fall_penalty = -2500.0
+            self.survival_reward = 0.5
+            self.forward_progress_reward_gain = 12000.0
+            self.forward_speed_reward_gain = 0.0
+            self.roll_pitch_rate_penalty_gain = 1.0
+            self.side_roll_penalty_gain = 6.0
+            self.action_penalty_weight = 0.4
+        else:
+            self.fall_penalty = -500.0
+            self.survival_reward = 0.5
+            self.forward_progress_reward_gain = 2000.0
+            self.forward_speed_reward_gain = 5.0
+            self.roll_pitch_rate_penalty_gain = 2.0
+            self.side_roll_penalty_gain = 6.0
+            self.action_penalty_weight = 0.0
+        normalized_presets = {
+            "h_only_straight_walk_survival_2_action_penalty",
+            "h_only_straight_walk_normalized_fullscale",
+        }
+        self.normalize_roll_pitch_rate = self.reward_preset in normalized_presets
+        self.normalize_action_penalty = self.reward_preset in normalized_presets
+        self.normalize_side_roll = self.reward_preset in normalized_presets
+        self.normalized_reward_scale = (
+            10000.0 if self.reward_preset == "h_only_straight_walk_normalized_fullscale" else 1.0
+        )
         self.speed_cmd = 3.0
         self.max_steps = 10000
         self.reset_settle_time = float(reset_settle_time)
         self.current_step = 0
+        self.roll_pitch_rate_sum = 0.0
+        self.prev_roll_pitch_rate_average = 0.0
+        self.action_penalty_sum = 0.0
+        self.prev_action_penalty_average = 0.0
+        self.side_roll_sum = 0.0
+        self.prev_side_roll_average = 0.0
         self.y_start = 0.0
         self.k_extension_states = self.initial_prismatic_targets[0:4].copy()
         self.f_extension_states = self.initial_prismatic_targets[4:8].copy()
         self.h_extension_states = self.initial_prismatic_targets[8:12].copy()
+        self.k_extension_velocities = np.zeros(4, dtype=np.float32)
+        self.f_extension_velocities = np.zeros(4, dtype=np.float32)
+        self.h_extension_velocities = np.zeros(4, dtype=np.float32)
         self.prev_action = self.initial_prismatic_targets.copy()
         self.real_time_start = 0
         self.reward_term_names = [
@@ -142,6 +191,7 @@ class JansenEnv(gym.Env):
             "side_roll",
             "survival",
             "fall",
+            "action_magnitude",
         ]
         self.episode_reward_terms = {name: 0.0 for name in self.reward_term_names}
 
@@ -164,6 +214,30 @@ class JansenEnv(gym.Env):
             self.data.ctrl[self.k_act_ids[i]] = self.k_extension_states[i]
             self.data.ctrl[self.f_act_ids[i]] = self.f_extension_states[i]
             self.data.ctrl[self.h_act_ids[i]] = self.h_extension_states[i]
+
+    def _advance_prismatic_with_acceleration_limit(self, states, velocities, targets):
+        """Post-PPO29 trial: rate- and acceleration-limit prismatic commands."""
+        physics_dt = self.model.opt.timestep
+        errors = targets - states
+        braking_speeds = np.sqrt(
+            2.0 * self.prismatic_max_acceleration * np.abs(errors)
+        )
+        desired_velocities = np.sign(errors) * np.minimum(
+            self.k_slew_rate, braking_speeds
+        )
+        max_velocity_delta = self.prismatic_max_acceleration * physics_dt
+        velocities += np.clip(
+            desired_velocities - velocities,
+            -max_velocity_delta,
+            max_velocity_delta,
+        )
+
+        previous_errors = errors.copy()
+        states += velocities * physics_dt
+        remaining_errors = targets - states
+        crossed_target = previous_errors * remaining_errors <= 0.0
+        states[crossed_target] = targets[crossed_target]
+        velocities[crossed_target] = 0.0
 
     def set_hinge_damping(self, value):
         for dof_id in self.hinge_dof_ids:
@@ -207,10 +281,19 @@ class JansenEnv(gym.Env):
         self.k_extension_states = self.initial_prismatic_targets[0:4].copy()
         self.f_extension_states = self.initial_prismatic_targets[4:8].copy()
         self.h_extension_states = self.initial_prismatic_targets[8:12].copy()
+        self.k_extension_velocities.fill(0.0)
+        self.f_extension_velocities.fill(0.0)
+        self.h_extension_velocities.fill(0.0)
         self.prev_action = self.initial_prismatic_targets.copy()
         self._apply_prismatic_ctrl()
         mujoco.mj_forward(self.model, self.data)
         self.current_step = 0
+        self.roll_pitch_rate_sum = 0.0
+        self.prev_roll_pitch_rate_average = 0.0
+        self.action_penalty_sum = 0.0
+        self.prev_action_penalty_average = 0.0
+        self.side_roll_sum = 0.0
+        self.prev_side_roll_average = 0.0
         self.y_start = float(self.data.qpos[self.plate_qadr + 1])
         self.real_time_start = time.perf_counter()
         self.episode_reward_terms = {name: 0.0 for name in self.reward_term_names}
@@ -222,6 +305,7 @@ class JansenEnv(gym.Env):
             self.damping_switched = True
         
         # Split 12 normalized actions into k/f/h targets with asymmetric min/max limits.
+        clipped_action = np.clip(action, -1.0, 1.0).astype(np.float32)
         prismatic_targets = self._action_to_prismatic_targets(action)
         target_k = prismatic_targets[0:4]
         target_f = prismatic_targets[4:8]
@@ -233,10 +317,21 @@ class JansenEnv(gym.Env):
             for mid in self.motor_ids: self.data.ctrl[mid] = self.speed_cmd
             
             # Independent slew control for 4 k-links, 4 f-links and 4 h-links
-            max_delta = self.k_slew_rate * self.model.opt.timestep
-            self.k_extension_states += np.clip(target_k - self.k_extension_states, -max_delta, max_delta)
-            self.f_extension_states += np.clip(target_f - self.f_extension_states, -max_delta, max_delta)
-            self.h_extension_states += np.clip(target_h - self.h_extension_states, -max_delta, max_delta)
+            if self.prismatic_max_acceleration > 0.0:
+                self._advance_prismatic_with_acceleration_limit(
+                    self.k_extension_states, self.k_extension_velocities, target_k
+                )
+                self._advance_prismatic_with_acceleration_limit(
+                    self.f_extension_states, self.f_extension_velocities, target_f
+                )
+                self._advance_prismatic_with_acceleration_limit(
+                    self.h_extension_states, self.h_extension_velocities, target_h
+                )
+            else:
+                max_delta = self.k_slew_rate * self.model.opt.timestep
+                self.k_extension_states += np.clip(target_k - self.k_extension_states, -max_delta, max_delta)
+                self.f_extension_states += np.clip(target_f - self.f_extension_states, -max_delta, max_delta)
+                self.h_extension_states += np.clip(target_h - self.h_extension_states, -max_delta, max_delta)
             
             self._apply_prismatic_ctrl()
             
@@ -256,20 +351,55 @@ class JansenEnv(gym.Env):
         vx, vy, vz = obs[0:3]
         wx, wy, wz = obs[3:6]
         
+        x_after = self.data.qpos[self.plate_qadr]
+        raw_roll_pitch_rate = -(abs(wx) + abs(wy)) * self.roll_pitch_rate_penalty_gain
+        if self.normalize_roll_pitch_rate:
+            self.roll_pitch_rate_sum += float(raw_roll_pitch_rate)
+            roll_pitch_rate_average = self.roll_pitch_rate_sum / float(self.current_step + 1)
+            roll_pitch_rate_reward = (
+                roll_pitch_rate_average - self.prev_roll_pitch_rate_average
+            ) * self.normalized_reward_scale
+            self.prev_roll_pitch_rate_average = roll_pitch_rate_average
+        else:
+            roll_pitch_rate_reward = raw_roll_pitch_rate
+
+        raw_action_penalty = -self.action_penalty_weight * float(np.mean(np.abs(clipped_action)))
+        if self.normalize_action_penalty:
+            self.action_penalty_sum += float(raw_action_penalty)
+            action_penalty_average = self.action_penalty_sum / float(self.current_step + 1)
+            action_penalty_reward = (
+                action_penalty_average - self.prev_action_penalty_average
+            ) * self.normalized_reward_scale
+            self.prev_action_penalty_average = action_penalty_average
+        else:
+            action_penalty_reward = raw_action_penalty
+
+        raw_side_roll = -abs(up_y) * self.side_roll_penalty_gain
+        if self.normalize_side_roll:
+            self.side_roll_sum += float(raw_side_roll)
+            side_roll_average = self.side_roll_sum / float(self.current_step + 1)
+            side_roll_reward = (
+                side_roll_average - self.prev_side_roll_average
+            ) * self.normalized_reward_scale
+            self.prev_side_roll_average = side_roll_average
+        else:
+            side_roll_reward = raw_side_roll
+
         reward_terms = {
-            "forward_progress": (self.data.qpos[self.plate_qadr] - x_before) * self.forward_reward_gain,
+            "forward_progress": (x_after - x_before) * self.forward_progress_reward_gain,
             "forward_speed": self.forward_speed_reward_gain * float(vx),
-            "roll_pitch_rate": -(abs(wx) + abs(wy)) * self.roll_rate_penalty_gain,
-            "side_roll": -abs(up_y) * self.roll_penalty_gain,
-            "survival": 0.5,
+            "roll_pitch_rate": roll_pitch_rate_reward,
+            "side_roll": side_roll_reward,
+            "survival": self.survival_reward,
             "fall": 0.0,
+            "action_magnitude": action_penalty_reward,
         }
         reward_terms = {name: float(value) for name, value in reward_terms.items()}
         self.prev_action = prismatic_targets.copy()
 
         terminated = up_z < 0.6 or self.data.qpos[self.plate_qadr+2] < 0.05
         if terminated:
-            reward_terms["fall"] = -500.0
+            reward_terms["fall"] = self.fall_penalty
 
         reward = float(sum(reward_terms.values()))
         for name, value in reward_terms.items():

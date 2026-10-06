@@ -1,0 +1,10 @@
+gymnasium==1.0.0
+imageio[ffmpeg]>=2.34
+matplotlib>=3.7
+mujoco==3.2.3
+numpy>=1.24
+rich>=13
+stable-baselines3==2.4.1
+tensorboard>=2.14
+torch>=2.4,<3
+tqdm>=4.66

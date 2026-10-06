@@ -8,11 +8,16 @@ models/
 tensorboard_logs/
 videos/
 plots/
-terrain_assets/
+training_logs/
+artifacts/
+terrain_assets/*
+!terrain_assets/rolling_hills_heightmap.png
 MUJOCO_LOG.TXT
+TRIAL*
 
 # Local documents and OS/editor noise
 *.docx
+*.pdf
 .vscode/
 .idea/
 desktop.ini
