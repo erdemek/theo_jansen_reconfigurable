@@ -60,6 +60,11 @@ class RewardTermsTensorboardCallback(BaseCallback):
         self.last_checkpoint_step = 0
         self.episode_terms = defaultdict(lambda: deque(maxlen=self.window_size))
 
+    def _on_training_start(self):
+        # For resumed training, schedule the first new checkpoint relative to
+        # the loaded model instead of saving an immediate duplicate.
+        self.last_checkpoint_step = int(self.model.num_timesteps)
+
     def _clamp_policy_log_std(self):
         log_std = getattr(self.model.policy, "log_std", None)
         if log_std is None:
@@ -125,6 +130,10 @@ def make_env(
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
     reward_preset="h_only_straight_walk",
+    physics_timestep=None,
+    control_timestep=None,
+    episode_seconds=None,
+    physics_tuning=None,
 ):
     """
     Utility function for multiprocessed env.
@@ -146,6 +155,10 @@ def make_env(
             reset_settle_time=reset_settle_time,
             train_prismatic_groups=train_prismatic_groups,
             reward_preset=reward_preset,
+            physics_timestep=physics_timestep,
+            control_timestep=control_timestep,
+            episode_seconds=episode_seconds,
+            **(physics_tuning or {}),
         )
         if monitor_path:
             env = Monitor(env, monitor_path)
@@ -180,6 +193,11 @@ def train(
     reward_preset="h_only_straight_walk",
     checkpoint_freq=0,
     checkpoint_dir="checkpoints",
+    physics_timestep=None,
+    control_timestep=None,
+    episode_seconds=None,
+    physics_tuning=None,
+    tensorboard_run_name="PPO",
 ):
     """
     Train the Jansen Walker using 6 Parallel Environments and GPU.
@@ -229,6 +247,15 @@ def train(
         f"{prismatic_max_acceleration if prismatic_max_acceleration > 0.0 else 'disabled'}"
     )
     print(f"Reward preset: {reward_preset}")
+    requested_physics_dt = physics_timestep if physics_timestep is not None else "XML default"
+    requested_control_dt = control_timestep if control_timestep is not None else "10 physics steps"
+    requested_episode_seconds = episode_seconds if episode_seconds is not None else "10000 policy steps"
+    print(
+        f"Timing: physics={requested_physics_dt} s | "
+        f"control={requested_control_dt} s | episode={requested_episode_seconds} s"
+    )
+    print(f"Physics tuning: {physics_tuning or {'stability_profile': 'baseline'}}")
+    print(f"TensorBoard run name: {tensorboard_run_name}")
     
     # Create parallel environments
     # Note: only the first env can be rendered easily in some setups, 
@@ -250,6 +277,10 @@ def train(
                 reset_settle_time=reset_settle_time,
                 train_prismatic_groups=train_prismatic_groups,
                 reward_preset=reward_preset,
+                physics_timestep=physics_timestep,
+                control_timestep=control_timestep,
+                episode_seconds=episode_seconds,
+                physics_tuning=physics_tuning,
             )
             for _ in range(n_envs)
         ])
@@ -271,6 +302,10 @@ def train(
                 reset_settle_time=reset_settle_time,
                 train_prismatic_groups=train_prismatic_groups,
                 reward_preset=reward_preset,
+                physics_timestep=physics_timestep,
+                control_timestep=control_timestep,
+                episode_seconds=episode_seconds,
+                physics_tuning=physics_tuning,
             )
             for _ in range(n_envs)
         ])
@@ -300,6 +335,7 @@ def train(
             total_timesteps=timesteps,
             progress_bar=True,
             reset_num_timesteps=not bool(load_model),
+            tb_log_name=tensorboard_run_name,
             callback=RewardTermsTensorboardCallback(
                 checkpoint_freq=checkpoint_freq,
                 checkpoint_dir=checkpoint_dir,
@@ -329,6 +365,10 @@ def analyze(
     reset_settle_time=6.2,
     train_prismatic_groups="kfh",
     reward_preset="h_only_straight_walk",
+    physics_timestep=None,
+    control_timestep=None,
+    episode_seconds=None,
+    physics_tuning=None,
 ):
     """
     Evaluate the model over N episodes and report the Best and Worst rewards.
@@ -356,6 +396,10 @@ def analyze(
         reset_settle_time=reset_settle_time,
         train_prismatic_groups=train_prismatic_groups,
         reward_preset=reward_preset,
+        physics_timestep=physics_timestep,
+        control_timestep=control_timestep,
+        episode_seconds=episode_seconds,
+        **(physics_tuning or {}),
     )
     
     all_rewards = []
@@ -404,6 +448,10 @@ def evaluate(
     video_cam_lookat_z=0.10,
     train_prismatic_groups="kfh",
     reward_preset="h_only_straight_walk",
+    physics_timestep=None,
+    control_timestep=None,
+    episode_seconds=None,
+    physics_tuning=None,
 ):
     """
     Visual evaluation.
@@ -431,6 +479,10 @@ def evaluate(
         reset_settle_time=reset_settle_time,
         train_prismatic_groups=train_prismatic_groups,
         reward_preset=reward_preset,
+        physics_timestep=physics_timestep,
+        control_timestep=control_timestep,
+        episode_seconds=episode_seconds,
+        **(physics_tuning or {}),
     )
 
     if video_path:
@@ -519,6 +571,19 @@ if __name__ == "__main__":
         help="Post-PPO29 trial acceleration limit in m/s^2. Use 0 to preserve the original PPO29 behavior.",
     )
     parser.add_argument("--reset-settle-time", type=float, default=6.2, help="Reset settle duration in seconds.")
+    parser.add_argument("--physics-timestep", type=float, default=None, help="Override the MuJoCo physics timestep in seconds, for example 0.002.")
+    parser.add_argument("--control-timestep", type=float, default=None, help="Policy interval in seconds; must be an integer multiple of the physics timestep.")
+    parser.add_argument("--episode-seconds", type=float, default=None, help="Episode duration in simulated seconds. The default preserves 10000 policy steps.")
+    parser.add_argument("--stability-profile", choices=sorted(JansenEnv.STABILITY_PROFILES), default="baseline", help="Runtime physics-tuning profile. 'baseline' leaves the XML model unchanged.")
+    parser.add_argument("--prismatic-kp-scale", type=float, default=None, help="Multiply all K/F/H position-servo gains by this value.")
+    parser.add_argument("--equality-time-constant", type=float, default=None, help="Override equality-constraint solref time constant in seconds.")
+    parser.add_argument("--prismatic-limit-time-constant", type=float, default=None, help="Override slide-joint limit solref time constant in seconds.")
+    parser.add_argument("--minimum-body-mass", type=float, default=None, help="Raise lighter positive body masses to this value and scale their inertia proportionally.")
+    parser.add_argument("--contact-time-constant", type=float, default=None, help="Override geom contact solref time constant in seconds.")
+    parser.add_argument("--crank-kv", type=float, default=None, help="Override the four crank velocity-servo gains.")
+    parser.add_argument("--prismatic-force-limit", type=float, default=None, help="Apply symmetric force limits to all twelve prismatic actuators.")
+    parser.add_argument("--crank-speed", type=float, default=None, help="Override the normal crank speed command in rad/s.")
+    parser.add_argument("--reset-crank-gain", type=float, default=None, help="Override the proportional crank-phasing gain used during reset.")
     parser.add_argument("--train-prismatic-groups", type=str, default="kfh", help="Which prismatic groups are policy-controlled: k, f, h, or combinations like kfh/h.")
     parser.add_argument(
         "--reward-preset",
@@ -533,6 +598,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--checkpoint-freq", type=int, default=0, help="Save a checkpoint every N timesteps during training. Use 0 to disable.")
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory for periodic training checkpoints.")
+    parser.add_argument("--tensorboard-run-name", type=str, default="PPO", help="TensorBoard run prefix; use a unique name to isolate an experiment.")
     parser.add_argument("--video", type=str, default=None, help="Record eval video to this MP4 path.")
     parser.add_argument("--video-duration", type=float, default=10.0, help="Eval video duration in simulated seconds.")
     parser.add_argument("--video-fps", type=int, default=60, help="Eval video FPS.")
@@ -545,6 +611,18 @@ if __name__ == "__main__":
     parser.add_argument("--video-cam-lookat-z", type=float, default=0.10, help="Eval video camera lookat Z.")
     
     args = parser.parse_args()
+    physics_tuning = {
+        "stability_profile": args.stability_profile,
+        "prismatic_kp_scale": args.prismatic_kp_scale,
+        "equality_time_constant": args.equality_time_constant,
+        "prismatic_limit_time_constant": args.prismatic_limit_time_constant,
+        "minimum_body_mass": args.minimum_body_mass,
+        "contact_time_constant": args.contact_time_constant,
+        "crank_kv": args.crank_kv,
+        "prismatic_force_limit": args.prismatic_force_limit,
+        "crank_speed": args.crank_speed,
+        "reset_crank_gain": args.reset_crank_gain,
+    }
     
     if args.mode == "train":
         train(
@@ -573,6 +651,11 @@ if __name__ == "__main__":
             reward_preset=args.reward_preset,
             checkpoint_freq=args.checkpoint_freq,
             checkpoint_dir=args.checkpoint_dir,
+            physics_timestep=args.physics_timestep,
+            control_timestep=args.control_timestep,
+            episode_seconds=args.episode_seconds,
+            physics_tuning=physics_tuning,
+            tensorboard_run_name=args.tensorboard_run_name,
         )
     elif args.mode == "eval":
         evaluate(
@@ -600,6 +683,10 @@ if __name__ == "__main__":
             video_cam_lookat_z=args.video_cam_lookat_z,
             train_prismatic_groups=args.train_prismatic_groups,
             reward_preset=args.reward_preset,
+            physics_timestep=args.physics_timestep,
+            control_timestep=args.control_timestep,
+            episode_seconds=args.episode_seconds,
+            physics_tuning=physics_tuning,
         )
     elif args.mode == "analyze":
         analyze(
@@ -617,4 +704,8 @@ if __name__ == "__main__":
             reset_settle_time=args.reset_settle_time,
             train_prismatic_groups=args.train_prismatic_groups,
             reward_preset=args.reward_preset,
+            physics_timestep=args.physics_timestep,
+            control_timestep=args.control_timestep,
+            episode_seconds=args.episode_seconds,
+            physics_tuning=physics_tuning,
         )

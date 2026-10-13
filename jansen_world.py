@@ -13,6 +13,23 @@ class JansenEnv(gym.Env):
     """
     metadata = {'render_modes': ['human'], 'render_fps': 60}
 
+    # Runtime-only model tuning. The baseline profile leaves the compiled XML
+    # unchanged. Explicit constructor/CLI values override profile values.
+    STABILITY_PROFILES = {
+        "baseline": {},
+        "dt2ms_soft": {
+            "prismatic_kp_scale": 0.10,
+            "equality_time_constant": 0.020,
+            "prismatic_limit_time_constant": 0.020,
+            "minimum_body_mass": 0.001,
+            "contact_time_constant": 0.020,
+            "crank_kv": 10.0,
+            "prismatic_force_limit": 1000.0,
+            "crank_speed": 3.0,
+            "reset_crank_gain": 10.0,
+        },
+    }
+
     def __init__(
         self,
         xml_path="jansen_assembly_red_articulated.xml",
@@ -29,21 +46,51 @@ class JansenEnv(gym.Env):
         reset_settle_time=6.2,
         train_prismatic_groups="kfh",
         reward_preset="h_only_straight_walk",
+        physics_timestep=None,
+        control_timestep=None,
+        episode_seconds=None,
+        stability_profile="baseline",
+        prismatic_kp_scale=None,
+        equality_time_constant=None,
+        prismatic_limit_time_constant=None,
+        minimum_body_mass=None,
+        contact_time_constant=None,
+        crank_kv=None,
+        prismatic_force_limit=None,
+        crank_speed=None,
+        reset_crank_gain=None,
     ):
         super(JansenEnv, self).__init__()
         self.render_mode = render_mode
         self.model = mujoco.MjModel.from_xml_path(xml_path)
-        self.data = mujoco.MjData(self.model)
-        
-        # Physics timing (0.00025s) -> RL timing (0.0025s)
-        self.frame_skip = 10 
-        self.dt = self.model.opt.timestep * self.frame_skip
 
-        if self.render_mode == "human":
-            from mujoco import viewer
-            self.viewer = viewer.launch_passive(self.model, self.data)
+        if physics_timestep is not None:
+            physics_timestep = float(physics_timestep)
+            if physics_timestep <= 0.0:
+                raise ValueError("physics_timestep must be > 0")
+            self.model.opt.timestep = physics_timestep
+
+        physics_timestep = float(self.model.opt.timestep)
+        if control_timestep is None:
+            # Preserve the original 0.25 ms x 10 = 2.5 ms behavior.
+            self.frame_skip = 10
         else:
-            self.viewer = None
+            control_timestep = float(control_timestep)
+            if control_timestep <= 0.0:
+                raise ValueError("control_timestep must be > 0")
+            self.frame_skip = int(round(control_timestep / physics_timestep))
+            if self.frame_skip < 1 or not math.isclose(
+                control_timestep,
+                self.frame_skip * physics_timestep,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    "control_timestep must be an integer multiple of the "
+                    f"physics timestep ({physics_timestep:g} s)"
+                )
+
+        self.dt = self.model.opt.timestep * self.frame_skip
 
         # --- IDs ---
         def get_required_actuator(name):
@@ -76,6 +123,122 @@ class JansenEnv(gym.Env):
         for j in range(self.model.njnt):
             if self.model.jnt_type[j] == mujoco.mjtJoint.mjJNT_HINGE:
                 self.hinge_dof_ids.append(self.model.jnt_dofadr[j])
+
+        profile_name = str(stability_profile).lower()
+        if profile_name not in self.STABILITY_PROFILES:
+            raise ValueError(
+                "stability_profile must be one of: "
+                f"{sorted(self.STABILITY_PROFILES)}"
+            )
+        profile = self.STABILITY_PROFILES[profile_name]
+
+        def tuned_value(name, explicit_value, baseline_value=None):
+            if explicit_value is not None:
+                return explicit_value
+            return profile.get(name, baseline_value)
+
+        kp_scale = float(tuned_value("prismatic_kp_scale", prismatic_kp_scale, 1.0))
+        equality_time_constant = tuned_value(
+            "equality_time_constant", equality_time_constant
+        )
+        prismatic_limit_time_constant = tuned_value(
+            "prismatic_limit_time_constant", prismatic_limit_time_constant
+        )
+        minimum_body_mass = tuned_value("minimum_body_mass", minimum_body_mass)
+        contact_time_constant = tuned_value(
+            "contact_time_constant", contact_time_constant
+        )
+        crank_kv = tuned_value("crank_kv", crank_kv)
+        prismatic_force_limit = tuned_value(
+            "prismatic_force_limit", prismatic_force_limit
+        )
+        self.speed_cmd = float(tuned_value("crank_speed", crank_speed, 3.0))
+        self.reset_crank_gain = float(
+            tuned_value("reset_crank_gain", reset_crank_gain, 20.0)
+        )
+
+        positive_values = {
+            "prismatic_kp_scale": kp_scale,
+            "equality_time_constant": equality_time_constant,
+            "prismatic_limit_time_constant": prismatic_limit_time_constant,
+            "minimum_body_mass": minimum_body_mass,
+            "contact_time_constant": contact_time_constant,
+            "crank_kv": crank_kv,
+            "prismatic_force_limit": prismatic_force_limit,
+            "reset_crank_gain": self.reset_crank_gain,
+        }
+        for name, value in positive_values.items():
+            if value is not None and float(value) <= 0.0:
+                raise ValueError(f"{name} must be > 0")
+        if self.speed_cmd < 0.0:
+            raise ValueError("crank_speed must be >= 0")
+
+        prismatic_actuator_ids = self.k_act_ids + self.f_act_ids + self.h_act_ids
+        for actuator_id in prismatic_actuator_ids:
+            kp = float(self.model.actuator_gainprm[actuator_id, 0]) * kp_scale
+            self.model.actuator_gainprm[actuator_id, 0] = kp
+            self.model.actuator_biasprm[actuator_id, 1] = -kp
+            if prismatic_force_limit is not None:
+                force_limit = float(prismatic_force_limit)
+                self.model.actuator_forcelimited[actuator_id] = 1
+                self.model.actuator_forcerange[actuator_id] = [
+                    -force_limit,
+                    force_limit,
+                ]
+
+        if crank_kv is not None:
+            crank_kv = float(crank_kv)
+            for actuator_id in self.motor_ids:
+                self.model.actuator_gainprm[actuator_id, 0] = crank_kv
+                self.model.actuator_biasprm[actuator_id, 2] = -crank_kv
+
+        if equality_time_constant is not None and self.model.neq:
+            self.model.eq_solref[:, 0] = float(equality_time_constant)
+
+        if prismatic_limit_time_constant is not None:
+            for joint_id in range(self.model.njnt):
+                if self.model.jnt_type[joint_id] == mujoco.mjtJoint.mjJNT_SLIDE:
+                    self.model.jnt_solref[joint_id, 0] = float(
+                        prismatic_limit_time_constant
+                    )
+
+        if contact_time_constant is not None:
+            self.model.geom_solref[:, 0] = float(contact_time_constant)
+
+        adjusted_body_count = 0
+        if minimum_body_mass is not None:
+            minimum_body_mass = float(minimum_body_mass)
+            for body_id in range(1, self.model.nbody):
+                old_mass = float(self.model.body_mass[body_id])
+                if 0.0 < old_mass < minimum_body_mass:
+                    mass_ratio = minimum_body_mass / old_mass
+                    self.model.body_mass[body_id] = minimum_body_mass
+                    self.model.body_inertia[body_id] *= mass_ratio
+                    adjusted_body_count += 1
+
+        self.data = mujoco.MjData(self.model)
+        if adjusted_body_count:
+            mujoco.mj_setConst(self.model, self.data)
+
+        self.stability_profile = profile_name
+        self.physics_tuning = {
+            "prismatic_kp_scale": kp_scale,
+            "equality_time_constant": equality_time_constant,
+            "prismatic_limit_time_constant": prismatic_limit_time_constant,
+            "minimum_body_mass": minimum_body_mass,
+            "adjusted_body_count": adjusted_body_count,
+            "contact_time_constant": contact_time_constant,
+            "crank_kv": crank_kv,
+            "prismatic_force_limit": prismatic_force_limit,
+            "crank_speed": self.speed_cmd,
+            "reset_crank_gain": self.reset_crank_gain,
+        }
+
+        if self.render_mode == "human":
+            from mujoco import viewer
+            self.viewer = viewer.launch_passive(self.model, self.data)
+        else:
+            self.viewer = None
 
         self.train_prismatic_groups = "".join(
             group for group in "kfh" if group in str(train_prismatic_groups).lower()
@@ -165,8 +328,13 @@ class JansenEnv(gym.Env):
         self.normalized_reward_scale = (
             10000.0 if self.reward_preset == "h_only_straight_walk_normalized_fullscale" else 1.0
         )
-        self.speed_cmd = 3.0
-        self.max_steps = 10000
+        if episode_seconds is None:
+            self.max_steps = 10000
+        else:
+            episode_seconds = float(episode_seconds)
+            if episode_seconds <= 0.0:
+                raise ValueError("episode_seconds must be > 0")
+            self.max_steps = max(1, int(round(episode_seconds / self.dt)))
         self.reset_settle_time = float(reset_settle_time)
         self.current_step = 0
         self.roll_pitch_rate_sum = 0.0
@@ -273,8 +441,8 @@ class JansenEnv(gym.Env):
         for _ in range(int(self.reset_settle_time / self.model.opt.timestep)):
             self.data.qpos[self.plate_qadr : self.plate_qadr + 7] = plate_qpos0
             self.data.qvel[self.plate_vadr : self.plate_vadr + 6] = 0.0
-            self.data.ctrl[self.motor_ids[0]] = 20.0 * (target_q_m - self.data.qpos[self.crank_joint_qadrs[0]])
-            self.data.ctrl[self.motor_ids[3]] = 20.0 * (target_q_r_y - self.data.qpos[self.crank_joint_qadrs[3]])
+            self.data.ctrl[self.motor_ids[0]] = self.reset_crank_gain * (target_q_m - self.data.qpos[self.crank_joint_qadrs[0]])
+            self.data.ctrl[self.motor_ids[3]] = self.reset_crank_gain * (target_q_r_y - self.data.qpos[self.crank_joint_qadrs[3]])
             mujoco.mj_step(self.model, self.data)
             
         self.damping_switched = False

@@ -76,6 +76,36 @@ Resume from a checkpoint or final model:
 python train_jansen.py --mode train --model jansen_h_only_60M --load jansen_h_only_30M --steps 30000000 --envs 6 --train-prismatic-groups h
 ```
 
+### Reversible 2 ms stability tuning
+
+Physics tuning is applied in memory and never rewrites an XML file. The
+`dt2ms_soft` profile currently applies:
+
+```text
+prismatic kp scale             0.10
+equality time constant         0.020 s
+prismatic-limit time constant  0.020 s
+minimum positive body mass     0.001 kg
+contact time constant          0.020 s
+crank velocity gain            10
+prismatic force limit          +/-1000 N
+crank speed                    3 rad/s
+reset crank gain               10
+```
+
+Evaluate at a 2 ms physics step and 10 ms policy interval:
+
+```powershell
+python train_jansen.py --mode eval --model MODEL_NAME --xml jansen_assembly_red_articulated.xml --train-prismatic-groups h --h-positive-amplitude 0.02 --h-negative-amplitude 0.02 --prismatic-max-acceleration 0.5 --reward-preset h_only_straight_walk_normalized_fullscale --physics-timestep 0.002 --control-timestep 0.01 --episode-seconds 25 --stability-profile dt2ms_soft
+```
+
+Return to the original compiled physics by omitting `--stability-profile`, or
+by using `--stability-profile baseline`. Individual profile values can be
+replaced with options such as `--prismatic-kp-scale`,
+`--equality-time-constant`, `--prismatic-limit-time-constant`,
+`--minimum-body-mass`, `--contact-time-constant`, `--crank-kv`,
+`--prismatic-force-limit`, `--crank-speed`, and `--reset-crank-gain`.
+
 Environment arguments used for evaluation must match those used to train the checkpoint, especially the selected prismatic groups and amplitude limits.
 
 ## Evaluation
